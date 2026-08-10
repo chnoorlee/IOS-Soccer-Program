@@ -1,0 +1,4773 @@
+openapi: 3.1.0
+info:
+  title: SportsHub Public API
+  version: 1.0.0-draft
+  summary: Vendor-neutral sports, editorial, media and personalization API.
+  description: |
+    Contract for the SportsHub iOS app. Every resource ID belongs to SportsHub;
+    third-party provider identifiers and payloads are private implementation details.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.example.invalid/v1
+    description: Reserved placeholder. Replace only after an authorized backend exists.
+security:
+  - {}
+  - bearerAuth: []
+tags:
+  - name: Home
+    description: Personalized or guest home snapshots.
+  - name: Fixtures
+    description: Schedules, match centers and realtime fixture events.
+  - name: Competitions
+    description: Competition metadata, standings and leaders.
+  - name: Teams
+    description: Clubs, national teams and squads.
+  - name: Players
+    description: Player profiles and transfer history.
+  - name: Transfers
+    description: Provider-authoritative global transfer updates with explicit status labels.
+  - name: Calendar
+    description: Provider-authored important dates across an atomic season window.
+  - name: Editorial
+    description: News articles and long-form editorial content.
+  - name: Video
+    description: Rights-aware video metadata and playback authorization.
+  - name: Search
+    description: Cross-resource discovery.
+  - name: Account
+    description: Authenticated follows, notification preferences and progress.
+  - name: Community
+    description: Moderated comments and reactions.
+  - name: Predictions
+    description: Region-eligible, non-wager prediction games.
+
+paths:
+  /home:
+    get:
+      operationId: getHome
+      tags: [Home]
+      summary: Get the personalized home snapshot.
+      description: Returns a stable snapshot. Authentication is optional; guests receive an editorial default.
+      x-sportshub-stage: core
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Home snapshot.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+            Cache-Control:
+              schema: { type: string }
+              description: Authenticated variants must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures:
+    get:
+      operationId: listFixtures
+      tags: [Fixtures]
+      summary: List fixtures for a local match day.
+      x-sportshub-stage: core
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Calendar date interpreted in `timeZone`.
+          schema:
+            type: string
+            format: date
+        - name: timeZone
+          in: query
+          required: true
+          description: IANA time-zone identifier, for example `Asia/Riyadh`.
+          schema:
+            type: string
+            minLength: 1
+        - name: competitionId
+          in: query
+          schema:
+            type: string
+        - name: teamId
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            $ref: '#/components/schemas/FixtureState'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Fixture page.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}:
+    get:
+      operationId: getFixture
+      tags: [Fixtures]
+      summary: Get a match-centre snapshot.
+      x-sportshub-stage: core
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Fixture detail with current events, lineups and statistics.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureDetailResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}/events:
+    get:
+      operationId: listFixtureEvents
+      tags: [Fixtures]
+      summary: Get incremental score and event mutations.
+      description: |
+        `afterRevision` is an exclusive cursor in one monotonic, per-fixture
+        revision sequence. `data` is ordered by revision and contains event
+        insertions, corrections under a stable event ID, or deletion tombstones.
+        The latest fixture snapshot carries score and state changes even when
+        `data` is empty. Clients must not persist or demo-fallback this response.
+      x-sportshub-stage: core
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - name: afterRevision
+          in: query
+          required: true
+          description: Return mutations strictly newer than this fixture revision.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Ordered mutations and the latest fixture revision.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureEventsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}/standings:
+    get:
+      operationId: getFixtureStandings
+      tags: [Fixtures]
+      summary: Get the confirmed-season standings for a fixture.
+      description: |
+        Resolves the fixture's competition and season on the server. Clients
+        must display the returned season and must not infer it from the
+        competition's current season. Empty standings are a valid response.
+      x-sportshub-stage: core
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Fixture-scoped standings with explicit season and provenance.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureStandingsResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}/head-to-head:
+    get:
+      operationId: getFixtureHeadToHead
+      tags: [Fixtures]
+      summary: Get recent completed meetings between the fixture's teams.
+      description: |
+        Returns completed meetings across all competitions, ordered by
+        `kickoffAt` descending and then stable fixture ID ascending. The current
+        fixture is excluded. This history is descriptive and is not a prediction.
+      x-sportshub-stage: core
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - name: limit
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Recent completed meetings with team identity and provenance.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureHeadToHeadResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}/content:
+    get:
+      operationId: getFixtureContent
+      tags: [Fixtures, Editorial, Video]
+      summary: Get rights-filtered editorial metadata explicitly scoped to a fixture.
+      description: >-
+        Returns the server-authoritative fixture association used by the match centre.
+        Provider order is significant. Clients must not infer a relationship by matching
+        team names, titles or descriptions. Video metadata grants no playback entitlement.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Bounded fixture content window.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixtureContentResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /fixtures/{fixtureId}/stream:
+    get:
+      operationId: streamFixtureEvents
+      tags: [Fixtures]
+      summary: Stream score and event changes with Server-Sent Events.
+      description: |
+        Event names are `fixture.snapshot`, `fixture.event.upsert`, `fixture.event.delete`,
+        and `heartbeat`. Every data event carries an increasing fixture revision.
+        Clients must reconnect with `Last-Event-ID` and replace data by stable event ID.
+      x-sportshub-stage: core
+      parameters:
+        - $ref: '#/components/parameters/FixtureID'
+        - name: Last-Event-ID
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SSE stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [Teams]
+      summary: List teams available for following and search.
+      x-sportshub-stage: core
+      parameters:
+        - name: competitionId
+          in: query
+          schema:
+            type: string
+        - name: query
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Team page.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /teams/match-snapshots:
+    get:
+      operationId: listTeamMatchSnapshots
+      tags: [Teams, Matches]
+      summary: Get one previous and one next match slot for an ordered team batch.
+      description: >-
+        Returns exactly one row per requested teamId in request order. The service
+        selects the nearest eligible fixtures; clients must not infer these slots
+        from titles or an unrelated fixtures feed.
+      x-sportshub-stage: content
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 20
+            uniqueItems: true
+            items:
+              type: string
+              minLength: 1
+              maxLength: 128
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Ordered team match snapshot batch.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMatchSnapshotListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /teams/{teamId}:
+    get:
+      operationId: getTeam
+      tags: [Teams]
+      summary: Get a team channel and current season summary.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/TeamID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Team detail.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDetailResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /teams/{teamId}/squad:
+    get:
+      operationId: listTeamSquad
+      tags: [Teams]
+      summary: List a team squad for a season.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/TeamID'
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Squad.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /teams/{teamId}/content:
+    get:
+      operationId: getTeamContent
+      tags: [Teams, Editorial, Video]
+      summary: Get recent rights-filtered editorial metadata explicitly scoped to a team.
+      description: >-
+        Returns the server-authoritative team association used by the team channel.
+        Clients must not infer related content by matching titles, descriptions or names.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/TeamID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Bounded team content window.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamContentResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /players:
+    get:
+      operationId: listPlayers
+      tags: [Players]
+      summary: List players available for following and search.
+      x-sportshub-stage: core
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Player page.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /players/{playerId}:
+    get:
+      operationId: getPlayer
+      tags: [Players]
+      summary: Get a player profile and season statistics.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/PlayerID'
+      responses:
+        '200':
+          description: Player detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerDetailResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /players/{playerId}/transfers:
+    get:
+      operationId: listPlayerTransfers
+      tags: [Players]
+      summary: List verified player transfers newest first.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/PlayerID'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Transfer page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /transfers:
+    get:
+      operationId: listTransferUpdates
+      tags: [Transfers]
+      summary: List global transfer updates newest first.
+      description: >-
+        Returns provider-authoritative transfer states. RUMORED is unconfirmed and
+        clients must not present it as AGREED or COMPLETED.
+      x-sportshub-stage: content
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous transfer page.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+            pattern: '^\S+$'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [RUMORED, AGREED, COMPLETED]
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Transfer update page.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /season-calendar:
+    get:
+      operationId: getSeasonCalendar
+      tags: [Calendar]
+      summary: Get the provider-authored important dates for the current season window.
+      description: >-
+        Returns one atomic cross-competition calendar. Clients may filter the returned
+        events but must not infer importance, confirmation, or replacement dates.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Important season dates ordered by startsAt ascending and ID ascending.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonCalendarResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /players/{playerId}/content:
+    get:
+      operationId: getPlayerContent
+      tags: [Players, Editorial, Video]
+      summary: Get recent rights-filtered editorial metadata explicitly scoped to a player.
+      description: >-
+        Returns the server-authoritative player association. Clients must not infer
+        related content from names, teams, statistics, titles, or descriptions.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/PlayerID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Bounded player content window.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerContentResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /competitions:
+    get:
+      operationId: listCompetitions
+      tags: [Competitions]
+      summary: List competitions and available seasons.
+      x-sportshub-stage: content
+      parameters:
+        - name: sport
+          in: query
+          schema:
+            $ref: '#/components/schemas/VideoSport'
+            enum: [FOOTBALL, BASKETBALL, ESPORTS, MOTORSPORT, COMBAT, ARCHERY]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Competition page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompetitionListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /competitions/{competitionId}/standings:
+    get:
+      operationId: getCompetitionStandings
+      tags: [Competitions]
+      summary: Get an ordered standings table.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/CompetitionID'
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Standings groups and rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /competitions/{competitionId}/content:
+    get:
+      operationId: getCompetitionContent
+      tags: [Competitions, Editorial, Video]
+      summary: Get recent rights-filtered editorial metadata explicitly scoped to a competition.
+      description: >-
+        Returns a season-independent, server-authoritative competition association.
+        Clients must not infer related content from names, teams, titles, or descriptions.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/CompetitionID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Bounded competition content window.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompetitionContentResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /competitions/{competitionId}/leaders:
+    get:
+      operationId: listCompetitionLeaders
+      tags: [Competitions]
+      summary: List scorers, assists or cards.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/CompetitionID'
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [GOALS, ASSISTS, YELLOW_CARDS, RED_CARDS]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Leader page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /competitions/{competitionId}/fixtures:
+    get:
+      operationId: listCompetitionFixtures
+      tags: [Competitions, Fixtures]
+      summary: List the complete fixture schedule for one competition season.
+      description: |
+        Pages form one globally ordered sequence by `kickoffAt` ascending and
+        stable fixture ID ascending for equal kickoff times. Every fixture must
+        belong to `competitionId`; the response echoes both requested scope IDs.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/CompetitionID'
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: A season-scoped fixture page.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompetitionFixtureListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /articles:
+    get:
+      operationId: listArticles
+      tags: [Editorial]
+      summary: List published articles.
+      x-sportshub-stage: content
+      parameters:
+        - name: teamId
+          in: query
+          schema:
+            type: string
+        - name: competitionId
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/ArticleCategory'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Article page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /articles/{articleId}:
+    get:
+      operationId: getArticle
+      tags: [Editorial]
+      summary: Get a published article, correction state and rights-safe visual reporting.
+      description: |
+        Structured visual briefs contain semantic bilingual text only. They do not carry
+        arbitrary HTML, SVG, remote assets or inferred third-party rights.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+      responses:
+        '200':
+          description: Article detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleDetailResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '410':
+          description: Article withdrawn.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /articles/{articleId}/comments:
+    get:
+      operationId: listArticleComments
+      tags: [Community]
+      summary: List moderated comments.
+      x-sportshub-stage: community
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Comment page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentListResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createArticleComment
+      tags: [Community]
+      summary: Create a comment pending moderation.
+      x-sportshub-stage: community
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentInput'
+      responses:
+        '201':
+          description: Comment accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /articles/{articleId}/reaction:
+    get:
+      operationId: getArticleReaction
+      tags: [Community]
+      summary: Get public reaction totals and the optional caller reaction.
+      description: This account-sensitive response is never cacheable.
+      x-sportshub-stage: community
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+      responses:
+        '200':
+          description: Reaction state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReactionResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: putArticleReaction
+      tags: [Community]
+      summary: Create or replace the current user's article reaction.
+      x-sportshub-stage: community
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReactionInput'
+      responses:
+        '200':
+          description: Reaction state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReactionResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteArticleReaction
+      tags: [Community]
+      summary: Remove the current user's reaction.
+      x-sportshub-stage: community
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Confirmed reaction state with a null caller reaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReactionResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /community/comments/{commentId}/reports:
+    post:
+      operationId: reportArticleComment
+      tags: [Community]
+      summary: Report a published comment for moderation review.
+      x-sportshub-stage: community
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentReportInput'
+      responses:
+        '202':
+          description: Report received for review without promising immediate removal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityReportResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/community-blocks/{authorId}:
+    put:
+      operationId: blockCommunityAuthor
+      tags: [Community]
+      summary: Block one opaque community author identity.
+      x-sportshub-stage: community
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Author is blocked and filtered from subsequent reads.
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /video-programs:
+    get:
+      operationId: listVideoPrograms
+      tags: [Video]
+      summary: List the provider-ordered bilingual programme catalog.
+      description: Programme order is editorial and must not be presented as popularity or personalization.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/VideoProgramLimit'
+        - name: sport
+          in: query
+          schema:
+            $ref: '#/components/schemas/VideoSport'
+      responses:
+        '200':
+          description: One page of programme summaries for the requested sport.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoProgramListResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /video-programs/{programId}:
+    get:
+      operationId: getVideoProgram
+      tags: [Video]
+      summary: Get one programme and a provider-ordered page of episodes.
+      description: Programme membership never grants playback or poster rights.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/VideoProgramID'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/VideoProgramLimit'
+      responses:
+        '200':
+          description: Programme summary and one episode page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoProgramDetailResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /videos:
+    get:
+      operationId: listVideos
+      tags: [Video]
+      summary: List rights-filtered live and on-demand video metadata.
+      x-sportshub-stage: content
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/VideoType'
+        - name: sport
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Video page for the caller's region and entitlements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /videos/discovery:
+    get:
+      operationId: getVideoDiscovery
+      tags: [Video]
+      summary: Get the authoritative featured, Trending, and sport video arrangement.
+      description: Editorial placement never grants playback rights or changes availability metadata.
+      x-sportshub-stage: content
+      responses:
+        '200':
+          description: One bounded and internally consistent editorial discovery snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoDiscoveryResponse'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /videos/{videoId}:
+    get:
+      operationId: getVideo
+      tags: [Video]
+      summary: Get video metadata; never returns a playable media URL.
+      x-sportshub-stage: content
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+      responses:
+        '200':
+          description: Video detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoDetailResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /videos/{videoId}/playback-session:
+    post:
+      operationId: createPlaybackSession
+      tags: [Video]
+      summary: Create a short-lived, region-checked playback session.
+      x-sportshub-stage: content
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlaybackSessionInput'
+      responses:
+        '201':
+          description: Short-lived playback session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackSessionResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /search:
+    get:
+      operationId: search
+      tags: [Search]
+      summary: Search localized aliases across content and sports entities.
+      description: |
+        Searches Unicode-normalized Arabic and English titles, approved aliases, and
+        searchable copy. Leading and trailing whitespace is ignored for validation.
+        Arabic matching removes tatweel and combining marks, normalizes Alef variants
+        and Alef Maqsura, and does not transliterate scripts or conflate Taa Marbuta.
+        The returned array is in server-authoritative relevance order; clients may
+        filter that order by type but must not rerank it.
+      x-sportshub-stage: content
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: types
+          in: query
+          description: Comma-separated result types.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/SearchResultType'
+          style: form
+          explode: false
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Search result page in server-authoritative relevance order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /auth/apple:
+    post:
+      operationId: signInWithApple
+      tags: [Account]
+      summary: Exchange a native Sign in with Apple credential for a SportsHub session.
+      description: |
+        The backend must verify the Apple identity-token signature, issuer, audience,
+        expiry and nonce before creating or resuming an account. Client-supplied name
+        and email are hints available only on Apple's first authorization.
+      x-sportshub-stage: account
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppleSignInRequest'
+      responses:
+        '200':
+          description: Authenticated session with rotated server credentials.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      tags: [Account]
+      summary: Rotate a refresh token and issue a fresh access token.
+      description: Refresh tokens are one-time rotating credentials; reuse revokes the token family.
+      x-sportshub-stage: account
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Refreshed session. Both tokens replace the previous pair.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /auth/logout:
+    post:
+      operationId: revokeSession
+      tags: [Account]
+      summary: Revoke the current refresh-token family and its push-device bindings.
+      description: Notification-device registrations created by this refresh-token family are removed, including when the session is already absent from the client.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLogoutRequest'
+      responses:
+        '204':
+          description: Session revoked or already absent.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [Account]
+      summary: Get the authenticated account profile.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current account profile.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteMyAccount
+      tags: [Account]
+      summary: Permanently delete the authenticated SportsHub account.
+      description: |
+        A 204 response means deletion is complete, not merely scheduled. Before responding,
+        the server deletes all account-associated data it is not legally required to retain,
+        revokes every SportsHub session and notification-device registration, and revokes the
+        user's Sign in with Apple grant through Apple's server API. Retrying an already completed
+        deletion with the same idempotency key is safe.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Account and deletable associated data were permanently removed.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/guest-merge:
+    post:
+      operationId: mergeGuestPersonalization
+      tags: [Account]
+      summary: Merge device-local guest progress, saved videos, saved articles and follows into the account.
+      description: |
+        The server performs deterministic newest-updated-at-wins upserts. Retrying the
+        same logical payload is safe even after an ambiguous network response. Video
+        metadata, playback URLs, article bodies and article media are never accepted
+        from the client.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestPersonalizationMergeRequest'
+      responses:
+        '200':
+          description: Guest state merged into the account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestPersonalizationMergeResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/follows:
+    get:
+      operationId: listMyFollows
+      tags: [Account]
+      summary: List the authenticated user's follows.
+      description: |
+        Returns current typed presentation snapshots ordered by `createdAt`
+        descending, then follow type and `entityId` ascending. Follows define
+        the eligible notification audience but do not enable event preferences
+        or grant system notification permission.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Follows.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowListResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createMyFollow
+      tags: [Account]
+      summary: Follow a team, player or competition.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFollowInput'
+      responses:
+        '201':
+          description: Follow created or existing follow returned with a server-authoritative entity snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/follows/{followId}:
+    delete:
+      operationId: deleteMyFollow
+      tags: [Account]
+      summary: Remove a follow. Deleting an absent follow is also successful.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: followId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Follow is absent.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/notification-preferences:
+    get:
+      operationId: getMyNotificationPreferences
+      tags: [Account]
+      summary: Get account-wide notification choices for news and match events.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification preferences.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: patchMyNotificationPreferences
+      tags: [Account]
+      summary: Update only supplied notification fields.
+      description: >-
+        Granular yellow-card, red-card and substitution fields are authoritative.
+        The deprecated card field remains available only for older clients and
+        applies to both card categories.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesPatch'
+      responses:
+        '200':
+          description: Updated preferences.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/notification-devices/{installationId}:
+    put:
+      operationId: upsertMyNotificationDevice
+      tags: [Account]
+      summary: Bind the current APNs token to this account session family.
+      description: The APNs token is credential-like, must never be logged or returned, and is replaced when Apple rotates it. Logout revokes the binding.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushDeviceRegistrationInput'
+      responses:
+        '204':
+          description: Device registration created or replaced; no token is returned.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/watch-history:
+    get:
+      operationId: listMyWatchHistory
+      tags: [Account]
+      summary: List all started or completed videos, newest activity first.
+      description: Includes completed items; entries with a zero position are omitted.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Cross-device viewing history.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: clearMyWatchHistory
+      tags: [Account]
+      summary: Remove all viewing positions and completed-history entries.
+      description: Saved videos and follows are not changed. Repeating the request is safe.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Viewing history is empty.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/watch-progress:
+    get:
+      operationId: listMyContinueWatching
+      tags: [Account]
+      summary: List incomplete watch progress with video metadata, newest first.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Cross-device continue-watching entries.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinueWatchingResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/watch-progress/{videoId}:
+    get:
+      operationId: getMyWatchProgress
+      tags: [Account]
+      summary: Get the current user's resume point for one video.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+      responses:
+        '200':
+          description: Stored watch progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchProgressResponse'
+        '404':
+          description: The video has no stored progress for this user.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: putMyWatchProgress
+      tags: [Account]
+      summary: Upsert watch progress for cross-device continue watching.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchProgressInput'
+      responses:
+        '200':
+          description: Stored watch progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchProgressResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteMyWatchProgress
+      tags: [Account]
+      summary: Remove one video's viewing position and history entry.
+      description: Saved-video and follow state are unchanged. Deleting absent progress is also successful.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: The video has no stored watch progress for this user.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/article-favorites:
+    get:
+      operationId: listMyFavoriteArticles
+      tags: [Account]
+      summary: List the authenticated user's saved published articles, newest saved first.
+      description: Withdrawn articles already saved may remain as removable metadata snapshots; article detail remains authoritative and can return 410.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Saved article metadata.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/article-favorites/{articleId}:
+    get:
+      operationId: getMyArticleFavorite
+      tags: [Account]
+      summary: Get whether one article is saved by the current user.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+      responses:
+        '200':
+          description: Current article favorite state.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleFavoriteResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: putMyArticleFavorite
+      tags: [Account]
+      summary: Save a published article. Saving an already saved article is also successful.
+      description: A withdrawn article cannot be newly saved.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Article is saved.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleFavoriteResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteMyArticleFavorite
+      tags: [Account]
+      summary: Remove a saved article. Deleting an absent favorite is also successful.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ArticleID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Article is not saved.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be `private, no-store`.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/video-favorites:
+    get:
+      operationId: listMyFavoriteVideos
+      tags: [Account]
+      summary: List the authenticated user's saved videos, newest first.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Saved video metadata.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Must be `private, no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoListResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /me/video-favorites/{videoId}:
+    get:
+      operationId: getMyVideoFavorite
+      tags: [Account]
+      summary: Get whether one video is saved by the current user.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+      responses:
+        '200':
+          description: Current favorite state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoFavoriteResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: putMyVideoFavorite
+      tags: [Account]
+      summary: Save a video. Saving an already saved video is also successful.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Video is saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoFavoriteResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteMyVideoFavorite
+      tags: [Account]
+      summary: Remove a saved video. Deleting an absent favorite is also successful.
+      x-sportshub-stage: account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VideoID'
+      responses:
+        '204':
+          description: Video is not saved.
+        '401':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /prediction-games:
+    get:
+      operationId: listPredictionGames
+      tags: [Predictions]
+      summary: List region-eligible, non-wager prediction games.
+      description: >-
+        Returns at most 20 complete group-order challenges in Provider order. Games are free
+        sports predictions and must not contain odds, stakes, entry fees, purchase advantages
+        or cash value. Personal entries are never included in this public cacheable response.
+      x-sportshub-stage: growth
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Prediction games.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionGameListResponse'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '429':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /prediction-games/{gameId}/entries/me:
+    get:
+      operationId: getMyPredictionEntry
+      tags: [Predictions]
+      summary: Get the authenticated user's complete entry for one game.
+      description: Private account state. This response is never cached or demo-fallback data.
+      x-sportshub-stage: growth
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Saved complete prediction entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionEntryResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: putMyPredictionEntry
+      tags: [Predictions]
+      summary: Create or replace the user's complete entry before the lock time.
+      description: >-
+        The request must rank every current group and every team exactly once. Both game state
+        and lockAt are enforced server-side. Retrying the same complete ranking with the same
+        idempotency key is safe. This is a free non-wager action.
+      x-sportshub-stage: growth
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictionEntryInput'
+      responses:
+        '200':
+          description: Stored prediction entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionEntryResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  headers:
+    ETag:
+      description: Opaque representation validator.
+      schema:
+        type: string
+    RequestID:
+      description: Correlation identifier for support and logs.
+      schema:
+        type: string
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor returned by the previous page.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+        pattern: '^\S+$'
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    VideoProgramLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+    FixtureID:
+      name: fixtureId
+      in: path
+      required: true
+      schema:
+        type: string
+    TeamID:
+      name: teamId
+      in: path
+      required: true
+      schema:
+        type: string
+    PlayerID:
+      name: playerId
+      in: path
+      required: true
+      schema:
+        type: string
+    CompetitionID:
+      name: competitionId
+      in: path
+      required: true
+      schema:
+        type: string
+    ArticleID:
+      name: articleId
+      in: path
+      required: true
+      schema:
+        type: string
+    VideoID:
+      name: videoId
+      in: path
+      required: true
+      schema:
+        type: string
+    VideoProgramID:
+      name: programId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[^/\\?#\x00-\x1F\x7F]+$'
+
+  responses:
+    NotModified:
+      description: The cached representation is current.
+    Problem:
+      description: Request failed. The HTTP status and stable problem code explain why.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    LocalizedText:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+        en:
+          type: string
+          minLength: 1
+
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [hasMore]
+      properties:
+        nextCursor:
+          type: [string, 'null']
+        hasMore:
+          type: boolean
+
+    AppleSignInRequest:
+      type: object
+      additionalProperties: false
+      required: [identityToken, authorizationCode, rawNonce]
+      properties:
+        identityToken:
+          type: string
+          minLength: 16
+          maxLength: 16384
+        authorizationCode:
+          type: string
+          minLength: 8
+          maxLength: 8192
+        rawNonce:
+          type: string
+          minLength: 32
+          maxLength: 128
+        givenName:
+          type: [string, 'null']
+          maxLength: 100
+        familyName:
+          type: [string, 'null']
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 320
+
+    AuthRefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 16
+          maxLength: 16384
+
+    AuthLogoutRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 16
+          maxLength: 16384
+
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, createdAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 320
+        createdAt:
+          type: string
+          format: date-time
+
+    AuthSession:
+      type: object
+      additionalProperties: false
+      required:
+        - user
+        - accessToken
+        - refreshToken
+        - accessTokenExpiresAt
+        - refreshTokenExpiresAt
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        accessToken:
+          type: string
+          minLength: 16
+          maxLength: 16384
+        refreshToken:
+          type: string
+          minLength: 16
+          maxLength: 16384
+        accessTokenExpiresAt:
+          type: string
+          format: date-time
+          description: No more than one hour after issuance; production policy should target 15–30 minutes.
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+          description: No more than 90 days after issuance and later than the access-token expiry.
+
+    AuthSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuthSession'
+
+    AuthUserResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuthUser'
+
+    GuestWatchProgressInput:
+      type: object
+      additionalProperties: false
+      required: [videoId, positionSeconds, completed, updatedAt]
+      properties:
+        videoId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        positionSeconds:
+          type: integer
+          minimum: 0
+        completed:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+
+    GuestVideoFavoriteInput:
+      type: object
+      additionalProperties: false
+      required: [videoId, updatedAt]
+      properties:
+        videoId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedAt:
+          type: string
+          format: date-time
+
+    GuestArticleFavoriteInput:
+      type: object
+      additionalProperties: false
+      required: [articleId, updatedAt]
+      properties:
+        articleId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedAt:
+          type: string
+          format: date-time
+
+    GuestFollowInput:
+      type: object
+      additionalProperties: false
+      required: [type, entityId, updatedAt]
+      properties:
+        type:
+          $ref: '#/components/schemas/FollowType'
+        entityId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedAt:
+          type: string
+          format: date-time
+
+    GuestPersonalizationMergeRequest:
+      type: object
+      additionalProperties: false
+      required: [watchProgress, videoFavorites, articleFavorites, follows]
+      properties:
+        watchProgress:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/GuestWatchProgressInput'
+        videoFavorites:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/GuestVideoFavoriteInput'
+        articleFavorites:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/GuestArticleFavoriteInput'
+        follows:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/GuestFollowInput'
+
+    GuestPersonalizationMergeResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      description: Every submitted record is counted exactly once across the five result fields.
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [progressUpserted, favoritesUpserted, articleFavoritesUpserted, followsUpserted, serverNewerRetained]
+          properties:
+            progressUpserted:
+              type: integer
+              minimum: 0
+            favoritesUpserted:
+              type: integer
+              minimum: 0
+            articleFavoritesUpserted:
+              type: integer
+              minimum: 0
+            followsUpserted:
+              type: integer
+              minimum: 0
+            serverNewerRetained:
+              type: integer
+              minimum: 0
+
+    MediaAsset:
+      type: object
+      additionalProperties: false
+      required: [id, kind, url, altText]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [IMAGE, POSTER, THUMBNAIL, LOGO]
+        url:
+          type: string
+          format: uri
+        altText:
+          $ref: '#/components/schemas/LocalizedText'
+        width:
+          type: [integer, 'null']
+          minimum: 1
+        height:
+          type: [integer, 'null']
+          minimum: 1
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+
+    TeamSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, monogram]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        monogram:
+          type: string
+          minLength: 1
+          maxLength: 5
+        accentColorHex:
+          type: [string, 'null']
+          pattern: '^[0-9A-Fa-f]{6}$'
+        logo:
+          oneOf:
+            - $ref: '#/components/schemas/MediaAsset'
+            - type: 'null'
+
+    SeasonSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, startDate, endDate, isCurrent]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        isCurrent:
+          type: boolean
+
+    CompetitionSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, sport]
+      properties:
+        id:
+          type: string
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        sport:
+          type: string
+          enum: [FOOTBALL, BASKETBALL, ESPORTS, MOTORSPORT, COMBAT, ARCHERY]
+        currentSeasonId:
+          type: [string, 'null']
+          description: Stable ID of the current season when seasonal data is available.
+        seasons:
+          type: array
+          maxItems: 50
+          description: >-
+            Provider-published seasons available to standings, leaders, fixtures and
+            squad endpoints. IDs are unique and entries are ordered by startDate
+            descending with ID ascending as a stable tie-break. If currentSeasonId is
+            present, exactly one matching entry has isCurrent true; otherwise none do.
+          items:
+            $ref: '#/components/schemas/SeasonSummary'
+          default: []
+        logo:
+          oneOf:
+            - $ref: '#/components/schemas/MediaAsset'
+            - type: 'null'
+
+    FixtureState:
+      type: string
+      enum: [SCHEDULED, LIVE, HALF_TIME, FINISHED, POSTPONED, CANCELLED]
+
+    Score:
+      type: object
+      additionalProperties: false
+      required: [home, away]
+      properties:
+        home:
+          type: integer
+          minimum: 0
+        away:
+          type: integer
+          minimum: 0
+
+    Broadcast:
+      type: object
+      additionalProperties: false
+      description: >-
+        Read-only regional schedule metadata. It never grants playback, subscription or
+        entitlement and intentionally contains no URL.
+      required: [regionCode, channel]
+      properties:
+        regionCode:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: Two-letter uppercase region code supplied by the rights Provider.
+        channel:
+          $ref: '#/components/schemas/BroadcastLocalizedText'
+        commentator:
+          oneOf:
+            - $ref: '#/components/schemas/BroadcastLocalizedText'
+            - type: 'null'
+        audioLanguageCode:
+          type: [string, 'null']
+          pattern: '^[a-z]{2,3}(-[A-Z]{2})?$'
+          description: Canonical supported BCP-47 subset such as ar or en-GB.
+
+    BroadcastLocalizedText:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      description: Trimmed broadcast label text without Unicode control characters.
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]*$'
+        en:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]*$'
+
+    FixtureSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - competition
+        - homeTeam
+        - awayTeam
+        - kickoffAt
+        - state
+        - venue
+        - revision
+      properties:
+        id:
+          type: string
+        competition:
+          $ref: '#/components/schemas/CompetitionSummary'
+        homeTeam:
+          $ref: '#/components/schemas/TeamSummary'
+        awayTeam:
+          $ref: '#/components/schemas/TeamSummary'
+        kickoffAt:
+          type: string
+          format: date-time
+        state:
+          $ref: '#/components/schemas/FixtureState'
+        minute:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 200
+        score:
+          oneOf:
+            - $ref: '#/components/schemas/Score'
+            - type: 'null'
+        venue:
+          $ref: '#/components/schemas/LocalizedText'
+        broadcasts:
+          type: array
+          maxItems: 12
+          description: >-
+            Provider order. Omission is backward-compatible and maps to an empty client array;
+            cancelled and postponed fixtures must return no listings.
+          items:
+            $ref: '#/components/schemas/Broadcast'
+          default: []
+        revision:
+          type: integer
+          minimum: 0
+          description: Monotonic revision in the parent fixture's global sequence.
+
+    ArticleCategory:
+      type: string
+      enum: [BREAKING, ANALYSIS, STATISTICS, TRANSFERS, INTERVIEW, MATCH_REPORT]
+
+    ArticleFormat:
+      type: string
+      enum: [STORY, VISUAL_BRIEF]
+
+    ArticleVisualSectionKind:
+      type: string
+      enum: [METRIC_GRID, COMPARISON, SEQUENCE]
+
+    ArticleVisualValue:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 32
+        en:
+          type: string
+          minLength: 1
+          maxLength: 32
+
+    ArticleVisualLabel:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 80
+        en:
+          type: string
+          minLength: 1
+          maxLength: 80
+
+    ArticleVisualTitle:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 100
+        en:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    ArticleVisualDetail:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 160
+        en:
+          type: string
+          minLength: 1
+          maxLength: 160
+
+    ArticleVisualSourceNote:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 200
+        en:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    ArticleVisualItem:
+      type: object
+      additionalProperties: false
+      required: [id, value, label]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Unique across every item in this visual brief.
+        value:
+          $ref: '#/components/schemas/ArticleVisualValue'
+        label:
+          $ref: '#/components/schemas/ArticleVisualLabel'
+        detail:
+          oneOf:
+            - $ref: '#/components/schemas/ArticleVisualDetail'
+            - type: 'null'
+
+    ArticleVisualSection:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, items]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Unique within this visual brief.
+        kind:
+          $ref: '#/components/schemas/ArticleVisualSectionKind'
+        title:
+          $ref: '#/components/schemas/ArticleVisualTitle'
+        items:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/ArticleVisualItem'
+      allOf:
+        - if:
+            properties:
+              kind:
+                const: COMPARISON
+            required: [kind]
+          then:
+            properties:
+              items:
+                minItems: 2
+                maxItems: 2
+
+    ArticleVisualBrief:
+      type: object
+      additionalProperties: false
+      required: [title, sourceNote, sections]
+      properties:
+        title:
+          $ref: '#/components/schemas/ArticleVisualTitle'
+        sourceNote:
+          $ref: '#/components/schemas/ArticleVisualSourceNote'
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 4
+          description: Provider order; section IDs and all nested item IDs must be unique.
+          items:
+            $ref: '#/components/schemas/ArticleVisualSection'
+
+    ArticleEngagementSummary:
+      type: object
+      additionalProperties: false
+      description: |
+        Viewer-neutral public snapshot for article cards. Totals may lag the
+        uncached community endpoints; publishedComments excludes pending,
+        rejected and removed comments. This object never contains caller state
+        or share analytics.
+      required: [totalReactions, publishedComments]
+      properties:
+        totalReactions:
+          type: integer
+          minimum: 0
+          maximum: 2000000000
+        publishedComments:
+          type: integer
+          minimum: 0
+          maximum: 2000000000
+
+    ArticleHeroMedia:
+      type: object
+      additionalProperties: false
+      description: |
+        Publisher-authorized public article image metadata. Inclusion is an
+        upstream rights assertion, not a licence the client can independently
+        prove. The URL must resolve directly without redirects and image bytes
+        never require caller identity or authorization.
+      required: [id, url, contentType, width, height, altText, credit]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        url:
+          type: string
+          format: uri
+          pattern: '^https://[^/@:#?]+/[^/?#][^#]*$'
+          maxLength: 2048
+          description: Direct public CDN URL. Credentials, fragments and custom ports are forbidden.
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic, image/heif]
+        width:
+          type: integer
+          minimum: 640
+          maximum: 4096
+        height:
+          type: integer
+          minimum: 360
+          maximum: 4096
+        altText:
+          $ref: '#/components/schemas/ArticleHeroAlternativeText'
+        credit:
+          $ref: '#/components/schemas/ArticleHeroCredit'
+
+    ArticleHeroAlternativeText:
+      type: object
+      additionalProperties: false
+      description: Bilingual image-specific alternative text.
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 180
+        en:
+          type: string
+          minLength: 1
+          maxLength: 180
+
+    ArticleHeroCredit:
+      type: object
+      additionalProperties: false
+      description: Bilingual visible publisher or photographer credit.
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 120
+        en:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    ArticleSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, summary, source, publishedAt, category, format, engagement, heroMedia]
+      properties:
+        id:
+          type: string
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        summary:
+          $ref: '#/components/schemas/LocalizedText'
+        source:
+          type: string
+          minLength: 1
+        publishedAt:
+          type: string
+          format: date-time
+        category:
+          $ref: '#/components/schemas/ArticleCategory'
+        format:
+          allOf:
+            - $ref: '#/components/schemas/ArticleFormat'
+          default: STORY
+          description: Older clients treat an omitted value as STORY during rolling deployment.
+        engagement:
+          allOf:
+            - $ref: '#/components/schemas/ArticleEngagementSummary'
+          description: |
+            Required in current responses. Rolling-deployment clients tolerate
+            an omitted value and hide the summary rather than treating it as zero.
+        heroMedia:
+          oneOf:
+            - $ref: '#/components/schemas/ArticleHeroMedia'
+            - type: 'null'
+          description: |
+            Required as an explicit object or null in current responses.
+            Rolling-deployment clients tolerate omission and show their original
+            category cover. Metadata must also satisfy at most 16 megapixels and
+            an aspect ratio from 1.2 through 2.4 before cache insertion.
+        correctionStatus:
+          type: string
+          enum: [ORIGINAL, CORRECTED]
+          default: ORIGINAL
+
+    HomeData:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, featuredFixtures, articles]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        featuredFixtures:
+          type: array
+          items:
+            $ref: '#/components/schemas/FixtureSummary'
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArticleSummary'
+        featuredVideos:
+          type: array
+          items:
+            $ref: '#/components/schemas/VideoSummary'
+          default: []
+
+    HomeResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/HomeData'
+
+    TeamListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    FixtureListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FixtureSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    CompetitionFixtureListResponse:
+      type: object
+      additionalProperties: false
+      required: [competitionId, seasonId, data, page]
+      properties:
+        competitionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        seasonId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        data:
+          type: array
+          description: Fixtures in the globally stable season order.
+          items:
+            $ref: '#/components/schemas/FixtureSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    FixtureEventType:
+      type: string
+      enum: [KICKOFF, GOAL, OWN_GOAL, PENALTY, YELLOW_CARD, RED_CARD, SUBSTITUTION, HALF_TIME, FULL_TIME, VAR]
+
+    FixtureEvent:
+      type: object
+      additionalProperties: false
+      required: [id, revision, minute, type, title, detail, isDeleted]
+      properties:
+        id:
+          type: string
+        revision:
+          type: integer
+          minimum: 0
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 200
+        addedTime:
+          type: [integer, 'null']
+          minimum: 0
+        type:
+          $ref: '#/components/schemas/FixtureEventType'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        detail:
+          $ref: '#/components/schemas/LocalizedText'
+        teamId:
+          type: [string, 'null']
+          description: When present, must identify the fixture's home or away team.
+        playerId:
+          type: [string, 'null']
+        secondaryPlayerId:
+          type: [string, 'null']
+        isDeleted:
+          type: boolean
+          description: When true, this item is a tombstone for the stable event ID.
+
+    FixtureEventsResponse:
+      type: object
+      additionalProperties: false
+      required: [data, fixture, fixtureRevision, updatedAt]
+      properties:
+        data:
+          type: array
+          description: Mutations ordered by strictly increasing revision.
+          items:
+            $ref: '#/components/schemas/FixtureEvent'
+        fixture:
+          $ref: '#/components/schemas/FixtureSummary'
+        fixtureRevision:
+          type: integer
+          minimum: 0
+          description: Latest fixture revision; equal to `fixture.revision`.
+        updatedAt:
+          type: string
+          format: date-time
+
+    FormationPosition:
+      type: object
+      additionalProperties: false
+      required: [line, order]
+      description: |
+        Normalized supplier position counted from goalkeeper toward attack.
+        Positions must be unique among a team's starters. This field is only a
+        visualization input; textual player data remains authoritative.
+      properties:
+        line:
+          type: integer
+          minimum: 0
+          maximum: 4
+        order:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: Left-to-right from the team's attacking perspective; locale direction does not mirror it.
+
+    LineupPlayer:
+      type: object
+      additionalProperties: false
+      required: [id, number, name, position]
+      properties:
+        id:
+          type: string
+        number:
+          type: integer
+          minimum: 1
+          maximum: 99
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        position:
+          type: string
+          enum: [GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD, UNKNOWN]
+        isStarter:
+          type: boolean
+          default: true
+        formationPosition:
+          description: Must be absent or null for substitutes.
+          oneOf:
+            - $ref: '#/components/schemas/FormationPosition'
+            - type: 'null'
+
+    Lineups:
+      type: object
+      additionalProperties: false
+      required: [home, away]
+      description: |
+        IDs and shirt numbers are unique within each team and at most 11 players
+        per team may be starters. A visual pitch is eligible only with exactly
+        11 starters, one goalkeeper, complete unique positions and line counts
+        matching the formation. Incomplete data remains a valid list-only state.
+      properties:
+        home:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/LineupPlayer'
+        away:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/LineupPlayer'
+        homeFormation:
+          type: [string, 'null']
+          pattern: '^[1-5](-[1-5]){1,3}$'
+          description: Components must sum to ten outfield players.
+        awayFormation:
+          type: [string, 'null']
+          pattern: '^[1-5](-[1-5]){1,3}$'
+          description: Components must sum to ten outfield players.
+
+    MatchStatistic:
+      type: object
+      additionalProperties: false
+      required: [id, type, homeValue, awayValue, unit]
+      description: |
+        IDs and types are unique in a fixture response. POSSESSION uses `%`, is
+        bounded to 0...100 per side and sums to 100 within 0.01. Other types use
+        an empty unit and whole-number values. SHOTS_ON_TARGET cannot exceed
+        SHOTS when both are supplied.
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [POSSESSION, SHOTS, SHOTS_ON_TARGET, CORNERS, FOULS, OFFSIDES, PASSES, SAVES]
+        homeValue:
+          type: number
+          minimum: 0
+        awayValue:
+          type: number
+          minimum: 0
+        unit:
+          type: string
+
+    DataSource:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    FixtureDetailData:
+      type: object
+      additionalProperties: false
+      required: [fixture, events, lineups, statistics, source, updatedAt]
+      properties:
+        fixture:
+          $ref: '#/components/schemas/FixtureSummary'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FixtureEvent'
+        lineups:
+          $ref: '#/components/schemas/Lineups'
+        statistics:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/MatchStatistic'
+        source:
+          $ref: '#/components/schemas/DataSource'
+        updatedAt:
+          type: string
+          format: date-time
+
+    FixtureDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FixtureDetailData'
+
+    PlayerSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, position]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          type: string
+        image:
+          oneOf:
+            - $ref: '#/components/schemas/MediaAsset'
+            - type: 'null'
+
+    PlayerListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PlayerSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    TeamDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [team, competitions, nextFixtures, recentFixtures]
+          properties:
+            team:
+              $ref: '#/components/schemas/TeamSummary'
+            competitions:
+              type: array
+              maxItems: 20
+              description: Unique competitions referenced by either fixture window.
+              items:
+                $ref: '#/components/schemas/CompetitionSummary'
+            nextFixtures:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique SCHEDULED fixtures containing data.team, ordered by kickoffAt
+                ascending then id ascending. This is a bounded channel window, not a
+                complete season schedule. The embedded team snapshot must equal data.team.
+              items:
+                $ref: '#/components/schemas/FixtureSummary'
+            recentFixtures:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique FINISHED fixtures containing data.team, ordered by kickoffAt
+                descending then id ascending. IDs must be disjoint from nextFixtures,
+                and the embedded team snapshot must equal data.team.
+              items:
+                $ref: '#/components/schemas/FixtureSummary'
+
+    TeamMatchSnapshotListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: >-
+            Exactly one item per requested teamId in the same order. Item team IDs
+            are unique because request IDs are unique.
+          items:
+            $ref: '#/components/schemas/TeamMatchSnapshot'
+
+    TeamMatchSnapshot:
+      type: object
+      additionalProperties: false
+      required: [team, previousFixture, nextFixture]
+      properties:
+        team:
+          $ref: '#/components/schemas/TeamSummary'
+        previousFixture:
+          description: >-
+            Null or the nearest FINISHED fixture containing team exactly once. The
+            embedded team snapshot must equal this item team.
+          oneOf:
+            - $ref: '#/components/schemas/FixtureSummary'
+            - type: 'null'
+        nextFixture:
+          description: >-
+            Null or the nearest SCHEDULED fixture containing team exactly once. The
+            embedded team snapshot must equal this item team and its ID must differ
+            from previousFixture when both are present.
+          oneOf:
+            - $ref: '#/components/schemas/FixtureSummary'
+            - type: 'null'
+
+    TeamContentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [teamId, articles, videos]
+          properties:
+            teamId:
+              type: string
+              description: Must echo the requested path teamId.
+            articles:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique published articles explicitly associated with teamId, ordered by
+                publishedAt descending then id ascending.
+              items:
+                $ref: '#/components/schemas/ArticleSummary'
+            videos:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique rights-filtered video metadata explicitly associated with teamId,
+                in provider editorial order. This response grants no playback entitlement.
+              items:
+                $ref: '#/components/schemas/VideoSummary'
+
+    PlayerContentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [playerId, articles, videos]
+          properties:
+            playerId:
+              type: string
+              description: Must echo the requested path playerId.
+            articles:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique published articles explicitly associated with playerId, ordered by
+                publishedAt descending then id ascending.
+              items:
+                $ref: '#/components/schemas/ArticleSummary'
+            videos:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique rights-filtered video metadata explicitly associated with playerId,
+                in provider editorial order. This response grants no playback entitlement.
+              items:
+                $ref: '#/components/schemas/VideoSummary'
+
+    CompetitionContentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [competitionId, articles, videos]
+          properties:
+            competitionId:
+              type: string
+              description: Must echo the requested path competitionId.
+            articles:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique published articles explicitly associated with competitionId, ordered by
+                publishedAt descending then id ascending.
+              items:
+                $ref: '#/components/schemas/ArticleSummary'
+            videos:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique rights-filtered video metadata explicitly associated with competitionId,
+                in provider editorial order. This response grants no playback entitlement.
+              items:
+                $ref: '#/components/schemas/VideoSummary'
+
+    FixtureContentMoment:
+      type: object
+      additionalProperties: false
+      required: [id, title, minute, video]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        minute:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 200
+          description: Match minute when this item represents a timed moment.
+        video:
+          allOf:
+            - $ref: '#/components/schemas/VideoSummary'
+          description: Rights-filtered metadata only; this object grants no playback entitlement.
+
+    FixtureContentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [fixtureId, moments, articles]
+          properties:
+            fixtureId:
+              type: string
+              description: Must exactly echo the requested path fixtureId.
+            moments:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique moment and embedded video IDs explicitly associated with fixtureId,
+                in provider editorial order.
+              items:
+                $ref: '#/components/schemas/FixtureContentMoment'
+            articles:
+              type: array
+              maxItems: 10
+              description: >-
+                Unique published articles explicitly associated with fixtureId, in provider
+                editorial order.
+              items:
+                $ref: '#/components/schemas/ArticleSummary'
+
+    PlayerDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [player, currentTeam, statistics]
+          properties:
+            player:
+              $ref: '#/components/schemas/PlayerSummary'
+            currentTeam:
+              oneOf:
+                - $ref: '#/components/schemas/TeamSummary'
+                - type: 'null'
+            statistics:
+              type: array
+              items:
+                $ref: '#/components/schemas/NamedValue'
+
+    NamedValue:
+      type: object
+      additionalProperties: false
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: number
+
+    Transfer:
+      type: object
+      additionalProperties: false
+      required: [id, player, transferDate, status]
+      properties:
+        id:
+          type: string
+        player:
+          $ref: '#/components/schemas/PlayerSummary'
+        fromTeam:
+          oneOf:
+            - $ref: '#/components/schemas/TeamSummary'
+            - type: 'null'
+        toTeam:
+          oneOf:
+            - $ref: '#/components/schemas/TeamSummary'
+            - type: 'null'
+        transferDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [RUMORED, AGREED, COMPLETED]
+
+    TransferListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transfer'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    SeasonCalendarEvent:
+      type: object
+      additionalProperties: false
+      required: [id, title, detail, startsAt, endsAt, kind, competition]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        title:
+          $ref: '#/components/schemas/SeasonCalendarTitle'
+        detail:
+          oneOf:
+            - $ref: '#/components/schemas/SeasonCalendarDetail'
+            - type: 'null'
+        startsAt:
+          type: string
+          format: date-time
+          description: Must fall inside the inclusive provider window.
+        endsAt:
+          type: [string, 'null']
+          format: date-time
+          description: Null for a point event; otherwise no earlier than startsAt and at most 120 days later.
+        kind:
+          type: string
+          enum: [COMPETITION_MILESTONE, DRAW, TRANSFER_WINDOW, INTERNATIONAL_BREAK, OTHER]
+        competition:
+          oneOf:
+            - $ref: '#/components/schemas/CompetitionSummary'
+            - type: 'null'
+
+    SeasonCalendarData:
+      type: object
+      additionalProperties: false
+      required: [rangeStart, rangeEnd, updatedAt, sourceName, events]
+      properties:
+        rangeStart:
+          type: string
+          format: date-time
+        rangeEnd:
+          type: string
+          format: date-time
+          description: Later than rangeStart and no more than 400 days after it.
+        updatedAt:
+          type: string
+          format: date-time
+        sourceName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]+$'
+        events:
+          type: array
+          maxItems: 200
+          description: Unique events ordered by startsAt ascending then id ascending.
+          items:
+            $ref: '#/components/schemas/SeasonCalendarEvent'
+
+    SeasonCalendarTitle:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]+$'
+        en:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]+$'
+
+    SeasonCalendarDetail:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]+$'
+        en:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '^[^\u0000-\u001F\u007F-\u009F]+$'
+
+    SeasonCalendarResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/SeasonCalendarData'
+
+    CompetitionListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompetitionSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    StandingRow:
+      type: object
+      additionalProperties: false
+      required: [rank, team, played, won, drawn, lost, goalsFor, goalsAgainst, points]
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        team:
+          $ref: '#/components/schemas/TeamSummary'
+        played: { type: integer, minimum: 0 }
+        won: { type: integer, minimum: 0 }
+        drawn: { type: integer, minimum: 0 }
+        lost: { type: integer, minimum: 0 }
+        goalsFor: { type: integer, minimum: 0 }
+        goalsAgainst: { type: integer, minimum: 0 }
+        points: { type: integer }
+        form:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            enum: [WIN, DRAW, LOSS]
+
+    StandingGroup:
+      type: object
+      additionalProperties: false
+      required: [groupName, rows]
+      properties:
+        groupName:
+          $ref: '#/components/schemas/LocalizedText'
+        rows:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/StandingRow'
+
+    StandingsResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StandingGroup'
+
+    FixtureStandingsData:
+      type: object
+      additionalProperties: false
+      required: [fixtureId, competition, season, standings, source, updatedAt]
+      properties:
+        fixtureId:
+          type: string
+          minLength: 1
+        competition:
+          $ref: '#/components/schemas/CompetitionSummary'
+        season:
+          $ref: '#/components/schemas/SeasonSummary'
+        standings:
+          type: array
+          description: Full ordered table; empty when this competition has no standings.
+          items:
+            $ref: '#/components/schemas/StandingGroup'
+        source:
+          $ref: '#/components/schemas/DataSource'
+        updatedAt:
+          type: string
+          format: date-time
+
+    FixtureStandingsResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FixtureStandingsData'
+
+    FixtureHeadToHeadData:
+      type: object
+      additionalProperties: false
+      required: [fixtureId, homeTeam, awayTeam, meetings, source, updatedAt]
+      properties:
+        fixtureId:
+          type: string
+          minLength: 1
+        homeTeam:
+          $ref: '#/components/schemas/TeamSummary'
+        awayTeam:
+          $ref: '#/components/schemas/TeamSummary'
+        meetings:
+          type: array
+          maxItems: 20
+          description: |
+            Finished fixtures for exactly these two teams. Ordered by kickoffAt
+            descending, then ID ascending. Cross-competition meetings are allowed.
+          items:
+            $ref: '#/components/schemas/FixtureSummary'
+        source:
+          $ref: '#/components/schemas/DataSource'
+        updatedAt:
+          type: string
+          format: date-time
+
+    FixtureHeadToHeadResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FixtureHeadToHeadData'
+
+    Leader:
+      type: object
+      additionalProperties: false
+      required: [rank, player, team, value]
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        player:
+          $ref: '#/components/schemas/PlayerSummary'
+        team:
+          $ref: '#/components/schemas/TeamSummary'
+        value:
+          type: number
+          minimum: 0
+
+    LeaderListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Leader'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    ArticleListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArticleSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    ArticleDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/ArticleSummary'
+            - type: object
+              required: [body, revision, visualBrief]
+              properties:
+                body:
+                  $ref: '#/components/schemas/LocalizedText'
+                revision:
+                  type: integer
+                  minimum: 1
+                visualBrief:
+                  oneOf:
+                    - $ref: '#/components/schemas/ArticleVisualBrief'
+                    - type: 'null'
+                  description: |
+                    Required and non-null when format is VISUAL_BRIEF; required and null when
+                    format is STORY. Clients reject mismatched pairs before caching.
+              allOf:
+                - if:
+                    properties:
+                      format:
+                        const: VISUAL_BRIEF
+                    required: [format]
+                  then:
+                    properties:
+                      visualBrief:
+                        $ref: '#/components/schemas/ArticleVisualBrief'
+                  else:
+                    properties:
+                      visualBrief:
+                        type: 'null'
+
+    ArticleFavoriteResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [articleId, isFavorite]
+          properties:
+            articleId:
+              type: string
+              minLength: 1
+              maxLength: 128
+            isFavorite:
+              type: boolean
+            updatedAt:
+              type: [string, 'null']
+              format: date-time
+
+    VideoType:
+      type: string
+      enum: [LIVE, REPLAY, HIGHLIGHT, ORIGINAL, INTERVIEW]
+
+    VideoSport:
+      type: string
+      enum: [FOOTBALL, BASKETBALL, ESPORTS, MOTORSPORT, COMBAT, ARCHERY]
+
+    VideoPosterMedia:
+      type: object
+      additionalProperties: false
+      description: |
+        Publisher-authorized public video-identification image metadata.
+        Inclusion is an upstream display-rights assertion, not a playback
+        entitlement or a licence the client can independently prove. The URL
+        resolves directly without redirects and never requires caller identity.
+      required: [id, url, contentType, width, height, altText, credit]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        url:
+          type: string
+          format: uri
+          pattern: '^https://[^/@:#?]+/[^/?#][^#]*$'
+          maxLength: 2048
+          description: Direct public CDN URL. Credentials, fragments and custom ports are forbidden.
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic, image/heif]
+        width:
+          type: integer
+          minimum: 640
+          maximum: 4096
+        height:
+          type: integer
+          minimum: 360
+          maximum: 4096
+        altText:
+          $ref: '#/components/schemas/VideoPosterAlternativeText'
+        credit:
+          $ref: '#/components/schemas/VideoPosterCredit'
+
+    VideoPosterAlternativeText:
+      type: object
+      additionalProperties: false
+      description: Bilingual poster-specific alternative text.
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 180
+        en:
+          type: string
+          minLength: 1
+          maxLength: 180
+
+    VideoPosterCredit:
+      type: object
+      additionalProperties: false
+      description: Bilingual visible publisher, studio or photographer credit.
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 120
+        en:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    VideoSummary:
+      type: object
+      additionalProperties: false
+      required: [id, type, title, poster, durationSeconds, isPlayable]
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/VideoType'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        poster:
+          oneOf:
+            - $ref: '#/components/schemas/VideoPosterMedia'
+            - type: 'null'
+          description: |
+            Required as an explicit object or null in current responses.
+            Rolling-deployment clients tolerate omission and show original
+            type-based artwork. It does not grant playback eligibility.
+        durationSeconds:
+          type: integer
+          minimum: 0
+        isPlayable:
+          type: boolean
+          description: True only when the caller may request a playback session.
+        availabilityReason:
+          type: [string, 'null']
+          enum: [null, LOGIN_REQUIRED, ENTITLEMENT_REQUIRED, REGION_BLOCKED, NOT_STARTED, EXPIRED]
+          description: Required when isPlayable is false and null when isPlayable is true.
+
+    VideoListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/VideoSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    VideoDiscoveryItem:
+      type: object
+      additionalProperties: false
+      required: [video, sport]
+      properties:
+        video:
+          $ref: '#/components/schemas/VideoSummary'
+        sport:
+          $ref: '#/components/schemas/VideoSport'
+
+    VideoDiscoveryResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [items, featuredVideoId, trendingVideoIds]
+          properties:
+            items:
+              type: array
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/VideoDiscoveryItem'
+            featuredVideoId:
+              type: [string, 'null']
+              minLength: 1
+              maxLength: 128
+              description: Must reference one item and must not also be Trending.
+            trendingVideoIds:
+              type: array
+              maxItems: 10
+              uniqueItems: true
+              description: Exact editorial rank order; the first identifier is rank 1.
+              items:
+                type: string
+                minLength: 1
+                maxLength: 128
+
+    VideoProgram:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[^/\\?#\x00-\x1F\x7F]+$'
+        title:
+          $ref: '#/components/schemas/VideoProgramTitle'
+
+    VideoProgramTitle:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '^(?=.*\S)[^\x00-\x1F\x7F]+$'
+        en:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '^(?=.*\S)[^\x00-\x1F\x7F]+$'
+
+    VideoProgramDescription:
+      type: object
+      additionalProperties: false
+      required: [ar, en]
+      properties:
+        ar:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '^(?=.*\S)[^\x00-\x1F\x7F]+$'
+        en:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '^(?=.*\S)[^\x00-\x1F\x7F]+$'
+
+    VideoProgramSummary:
+      type: object
+      additionalProperties: false
+      description: Provider-authored programme identity; it does not grant media playback or artwork rights.
+      required: [id, title, description, sport, featuredVideo]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[^/\\?#\x00-\x1F\x7F]+$'
+        title:
+          $ref: '#/components/schemas/VideoProgramTitle'
+        description:
+          $ref: '#/components/schemas/VideoProgramDescription'
+        sport:
+          $ref: '#/components/schemas/VideoSport'
+        featuredVideo:
+          oneOf:
+            - $ref: '#/components/schemas/VideoSummary'
+            - type: 'null'
+          description: Explicit editorial video or null; never a recommendation score or playback grant.
+
+    VideoProgramPageInfo:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, hasMore]
+      properties:
+        nextCursor:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2048
+          pattern: '^\S+$'
+        hasMore:
+          type: boolean
+      allOf:
+        - if:
+            properties:
+              hasMore:
+                const: true
+            required: [hasMore]
+          then:
+            properties:
+              nextCursor:
+                type: string
+                minLength: 1
+                maxLength: 2048
+                pattern: '^\S+$'
+          else:
+            properties:
+              nextCursor:
+                type: 'null'
+
+    VideoProgramListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/VideoProgramSummary'
+        page:
+          $ref: '#/components/schemas/VideoProgramPageInfo'
+
+    VideoProgramEpisode:
+      type: object
+      additionalProperties: false
+      required: [video, publishedAt]
+      properties:
+        video:
+          $ref: '#/components/schemas/VideoSummary'
+        publishedAt:
+          type: [string, 'null']
+          format: date-time
+
+    VideoProgramDetail:
+      type: object
+      additionalProperties: false
+      required: [program, episodes, page]
+      properties:
+        program:
+          $ref: '#/components/schemas/VideoProgramSummary'
+        episodes:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/VideoProgramEpisode'
+        page:
+          $ref: '#/components/schemas/VideoProgramPageInfo'
+
+    VideoProgramDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VideoProgramDetail'
+
+    VideoDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - type
+        - title
+        - poster
+        - durationSeconds
+        - isPlayable
+        - publishedAt
+        - audioLanguages
+        - subtitleLanguages
+        - publisher
+        - program
+        - relatedVideos
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        type:
+          $ref: '#/components/schemas/VideoType'
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        description:
+          $ref: '#/components/schemas/LocalizedText'
+        poster:
+          oneOf:
+            - $ref: '#/components/schemas/VideoPosterMedia'
+            - type: 'null'
+          description: |
+            Required as an explicit object or null in current responses.
+            Rolling-deployment clients tolerate omission and show original
+            type-based artwork. It does not grant playback eligibility.
+        durationSeconds:
+          type: integer
+          minimum: 0
+        isPlayable:
+          type: boolean
+          description: True only when the caller may request a playback session.
+        availabilityReason:
+          type: [string, 'null']
+          enum: [null, LOGIN_REQUIRED, ENTITLEMENT_REQUIRED, REGION_BLOCKED, NOT_STARTED, EXPIRED]
+          description: Required when isPlayable is false and null when isPlayable is true.
+        publishedAt:
+          type: [string, 'null']
+          format: date-time
+        audioLanguages:
+          type: array
+          items:
+            type: string
+        subtitleLanguages:
+          type: array
+          items:
+            type: string
+        publisher:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        program:
+          oneOf:
+            - $ref: '#/components/schemas/VideoProgram'
+            - type: 'null'
+        relatedVideos:
+          type: array
+          maxItems: 10
+          description: Complete server-authored order; IDs must be unique and exclude the current video.
+          items:
+            $ref: '#/components/schemas/VideoSummary'
+
+    VideoDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VideoDetail'
+
+    CreatePlaybackSessionInput:
+      type: object
+      additionalProperties: false
+      required: [deviceID, supportsFairPlay]
+      properties:
+        deviceID:
+          type: string
+          minLength: 16
+          maxLength: 128
+        supportsFairPlay:
+          type: boolean
+          description: Explicit client capability; false when no content-key delegate is configured.
+
+    PlaybackSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [id, hlsURL, expiresAt, allowsAirPlay, allowsPictureInPicture]
+          properties:
+            id:
+              type: string
+            hlsURL:
+              type: string
+              format: uri
+              pattern: '^https://'
+              description: Short-lived HTTPS HLS URL. Never persist or log this value.
+            fairPlayCertificateURL:
+              type: [string, 'null']
+              format: uri
+              pattern: '^https://'
+            fairPlayLicenseURL:
+              type: [string, 'null']
+              format: uri
+              pattern: '^https://'
+            expiresAt:
+              type: string
+              format: date-time
+              description: Latest time at which a client may initiate this AVPlayer session; active-stream renewal is governed by the HLS service.
+            allowsAirPlay:
+              type: boolean
+              description: Server-authorized external playback policy for this session.
+            allowsPictureInPicture:
+              type: boolean
+              description: Server-authorized Picture in Picture policy for this session.
+          description: FairPlay certificate and license URLs must either both be null or both be present.
+
+    SearchResultType:
+      type: string
+      enum: [ARTICLE, VIDEO, TEAM, PLAYER, COMPETITION]
+
+    SearchResult:
+      type: object
+      additionalProperties: false
+      description: One localized search hit, uniquely keyed by type and entityId within the page.
+      required: [type, entityId, title]
+      properties:
+        type:
+          $ref: '#/components/schemas/SearchResultType'
+        entityId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        subtitle:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        image:
+          oneOf:
+            - $ref: '#/components/schemas/MediaAsset'
+            - type: 'null'
+
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      description: |
+        A bounded page of results. Array order is the relevance contract. The
+        combination of type and entityId must be unique within the page.
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    FollowType:
+      type: string
+      enum: [TEAM, PLAYER, COMPETITION]
+
+    Follow:
+      type: object
+      additionalProperties: false
+      required: [id, type, entityId, createdAt, entity]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        type:
+          $ref: '#/components/schemas/FollowType'
+        entityId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        createdAt:
+          type: string
+          format: date-time
+        entity:
+          $ref: '#/components/schemas/FollowEntity'
+
+    FollowEntity:
+      oneOf:
+        - $ref: '#/components/schemas/FollowTeamEntity'
+        - $ref: '#/components/schemas/FollowPlayerEntity'
+        - $ref: '#/components/schemas/FollowCompetitionEntity'
+      discriminator:
+        propertyName: type
+        mapping:
+          TEAM: '#/components/schemas/FollowTeamEntity'
+          PLAYER: '#/components/schemas/FollowPlayerEntity'
+          COMPETITION: '#/components/schemas/FollowCompetitionEntity'
+
+    FollowTeamEntity:
+      type: object
+      additionalProperties: false
+      required: [type, team]
+      properties:
+        type:
+          type: string
+          enum: [TEAM]
+        team:
+          $ref: '#/components/schemas/TeamSummary'
+
+    FollowPlayerEntity:
+      type: object
+      additionalProperties: false
+      required: [type, player]
+      properties:
+        type:
+          type: string
+          enum: [PLAYER]
+        player:
+          $ref: '#/components/schemas/PlayerSummary'
+
+    FollowCompetitionEntity:
+      type: object
+      additionalProperties: false
+      required: [type, competition]
+      properties:
+        type:
+          type: string
+          enum: [COMPETITION]
+        competition:
+          $ref: '#/components/schemas/CompetitionSummary'
+
+    CreateFollowInput:
+      type: object
+      additionalProperties: false
+      required: [type, entityId]
+      properties:
+        type:
+          $ref: '#/components/schemas/FollowType'
+        entityId:
+          type: string
+          minLength: 1
+          maxLength: 128
+
+    FollowResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Follow'
+
+    FollowListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/Follow'
+
+    NotificationPreferences:
+      type: object
+      additionalProperties: false
+      required:
+        - breakingNews
+        - lineup
+        - kickoff
+        - goal
+        - card
+        - yellowCard
+        - redCard
+        - substitution
+        - halfTime
+        - fullTime
+      properties:
+        breakingNews: { type: boolean }
+        lineup: { type: boolean }
+        kickoff: { type: boolean }
+        goal: { type: boolean }
+        card:
+          type: boolean
+          deprecated: true
+          description: Legacy aggregate that is true only when both granular card preferences are enabled.
+        yellowCard: { type: boolean }
+        redCard: { type: boolean }
+        substitution: { type: boolean }
+        halfTime: { type: boolean }
+        fullTime: { type: boolean }
+
+    NotificationPreferencesPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        breakingNews: { type: boolean }
+        lineup: { type: boolean }
+        kickoff: { type: boolean }
+        goal: { type: boolean }
+        card:
+          type: boolean
+          deprecated: true
+          description: Legacy write that sets both yellowCard and redCard to the supplied value.
+        yellowCard: { type: boolean }
+        redCard: { type: boolean }
+        substitution: { type: boolean }
+        halfTime: { type: boolean }
+        fullTime: { type: boolean }
+
+    NotificationPreferencesResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/NotificationPreferences'
+
+    PushNotificationEnvironment:
+      type: string
+      enum: [SANDBOX, PRODUCTION]
+
+    PushDeviceRegistrationInput:
+      type: object
+      additionalProperties: false
+      required: [token, environment, locale, timeZone]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          pattern: '^[0-9a-f]+$'
+          description: Lowercase hexadecimal APNs device token. Never log or return this value.
+        environment:
+          $ref: '#/components/schemas/PushNotificationEnvironment'
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 64
+          pattern: '^\S+$'
+        timeZone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: IANA time-zone identifier used for quiet-time and local-day rules.
+
+    Comment:
+      type: object
+      additionalProperties: false
+      required: [id, articleId, body, authorId, authorDisplayName, moderationState, isMine, createdAt]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 128 }
+        articleId: { type: string, minLength: 1, maxLength: 128 }
+        body: { type: string, minLength: 1, maxLength: 500 }
+        authorId: { type: string, minLength: 1, maxLength: 128 }
+        authorDisplayName: { type: string, minLength: 1, maxLength: 80 }
+        moderationState:
+          type: string
+          enum: [PENDING, PUBLISHED, REJECTED, REMOVED]
+        isMine: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    CreateCommentInput:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    CommentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Comment'
+
+    CommentListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    ReactionInput:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [LIKE, INSIGHTFUL, CELEBRATE]
+
+    ReactionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [myReaction, totals]
+          properties:
+            myReaction:
+              type: [string, 'null']
+              enum: [LIKE, INSIGHTFUL, CELEBRATE, null]
+            totals:
+              type: object
+              additionalProperties: false
+              required: [LIKE, INSIGHTFUL, CELEBRATE]
+              properties:
+                LIKE: { type: integer, minimum: 0 }
+                INSIGHTFUL: { type: integer, minimum: 0 }
+                CELEBRATE: { type: integer, minimum: 0 }
+
+    CommentReportInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [HARASSMENT, HATE, SPAM, MISINFORMATION, OTHER]
+        details:
+          type: [string, 'null']
+          maxLength: 500
+
+    CommunityReportResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [reportId, status, submittedAt]
+          properties:
+            reportId: { type: string, minLength: 1, maxLength: 128 }
+            status: { type: string, enum: [RECEIVED] }
+            submittedAt: { type: string, format: date-time }
+
+    WatchProgressInput:
+      type: object
+      additionalProperties: false
+      required: [positionSeconds, completed]
+      properties:
+        positionSeconds:
+          type: integer
+          minimum: 0
+        completed:
+          type: boolean
+
+    WatchProgress:
+      type: object
+      additionalProperties: false
+      required: [videoId, positionSeconds, completed, updatedAt]
+      properties:
+        videoId: { type: string }
+        positionSeconds: { type: integer, minimum: 0 }
+        completed: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    WatchProgressResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WatchProgress'
+
+    ContinueWatchingItem:
+      type: object
+      additionalProperties: false
+      required: [video, progress]
+      properties:
+        video:
+          $ref: '#/components/schemas/VideoSummary'
+        progress:
+          $ref: '#/components/schemas/WatchProgress'
+
+    ContinueWatchingResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinueWatchingItem'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    WatchHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          description: Contains both incomplete and completed viewing records.
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ContinueWatchingItem'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    VideoFavoriteResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [videoId, isFavorite]
+          properties:
+            videoId:
+              type: string
+            isFavorite:
+              type: boolean
+            updatedAt:
+              type: [string, 'null']
+              format: date-time
+
+    PredictionGroup:
+      type: object
+      additionalProperties: false
+      required: [id, name, teams, qualifyingPositions]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        name:
+          $ref: '#/components/schemas/LocalizedText'
+        teams:
+          type: array
+          minItems: 2
+          maxItems: 8
+          uniqueItems: true
+          description: Provider order is the default unsaved ranking; team IDs are unique in the game.
+          items:
+            $ref: '#/components/schemas/TeamSummary'
+        qualifyingPositions:
+          type: integer
+          minimum: 1
+          maximum: 7
+
+    PredictionGame:
+      type: object
+      additionalProperties: false
+      required: [id, title, summary, lockAt, state, rulesURL, groups]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        summary:
+          $ref: '#/components/schemas/LocalizedText'
+        lockAt: { type: string, format: date-time }
+        state:
+          type: string
+          enum: [OPEN, LOCKED, SETTLED, CANCELLED]
+        rulesURL:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: HTTPS informational rules only; never a payment or wagering destination.
+        groups:
+          type: array
+          minItems: 1
+          maxItems: 12
+          description: Ordered groups with no repeated group or team IDs inside this game.
+          items:
+            $ref: '#/components/schemas/PredictionGroup'
+
+    PredictionGameListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/PredictionGame'
+
+    PredictionGroupRanking:
+      type: object
+      additionalProperties: false
+      required: [groupId, orderedTeamIds]
+      properties:
+        groupId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        orderedTeamIds:
+          type: array
+          minItems: 2
+          maxItems: 8
+          uniqueItems: true
+          description: Every team in the referenced game group exactly once, predicted first to last.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+
+    PredictionEntryInput:
+      type: object
+      additionalProperties: false
+      required: [rankings]
+      properties:
+        rankings:
+          type: array
+          minItems: 1
+          maxItems: 12
+          uniqueItems: true
+          description: One complete ranking for every game group, in current Provider group order.
+          items:
+            $ref: '#/components/schemas/PredictionGroupRanking'
+
+    PredictionEntryResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [gameId, rankings, updatedAt]
+          properties:
+            gameId:
+              type: string
+              minLength: 1
+              maxLength: 128
+            rankings:
+              type: array
+              minItems: 1
+              maxItems: 12
+              uniqueItems: true
+              items:
+                $ref: '#/components/schemas/PredictionGroupRanking'
+            updatedAt: { type: string, format: date-time }
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, requestId]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]+$'
+        detail:
+          type: [string, 'null']
+        requestId:
+          type: string
+        fieldErrors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
