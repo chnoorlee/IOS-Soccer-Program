@@ -6,8 +6,6 @@ workflows:
     max_build_duration: 30
     environment:
       xcode: latest
-      groups:
-        - sports_hub_env
     scripts:
       - name: Install XcodeGen
         script: brew install xcodegen
@@ -37,12 +35,12 @@ workflows:
             -only-testing:SportsHubTests \
             -resultBundlePath TestResults.xcresult 2>&1 | tee test.log
 
-      - name: Parse test results
+      - name: Check test results
         script: |
           if grep -q "\\*\\* TEST SUCCEEDED \\*\\*" test.log; then
-            echo "✅ All tests passed"
+            echo "All tests passed"
           else
-            echo "❌ Tests failed — check test.log"
+            echo "Tests failed - check test.log"
             exit 1
           fi
 
@@ -51,11 +49,6 @@ workflows:
       - test.log
       - TestResults.xcresult
 
-    publishing:
-      email:
-        recipients:
-          - $SPORTSHUB_BUILD_NOTIFY_EMAIL
-
   # ── 手动触发：归档 IPA 用于真机/TestFlight ──
   sports-hub-archive:
     name: SportsHub Archive (IPA)
@@ -63,20 +56,12 @@ workflows:
     max_build_duration: 45
     environment:
       xcode: latest
-      groups:
-        - sports_hub_env
-        - sports_hub_signing
     scripts:
       - name: Install XcodeGen
         script: brew install xcodegen
 
       - name: Generate Xcode project
         script: xcodegen generate
-
-      - name: Set build number from Codemagic
-        script: |
-          cd ios &&
-          agvtool new-version -all $CM_BUILD_NUMBER
 
       - name: Build archive
         script: |
@@ -96,8 +81,3 @@ workflows:
 
     artifacts:
       - build/ipa/*.ipa
-
-    publishing:
-      email:
-        recipients:
-          - $SPORTSHUB_BUILD_NOTIFY_EMAIL
