@@ -1,0 +1,103 @@
+workflows:
+  # ── 每次 push 自动编译 + 单元测试 ──
+  sports-hub-build-test:
+    name: SportsHub Build & Test
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: latest
+      groups:
+        - sports_hub_env
+    scripts:
+      - name: Install XcodeGen
+        script: brew install xcodegen
+
+      - name: Generate Xcode project
+        script: xcodegen generate
+
+      - name: Build SportsHub
+        script: |
+          xcodebuild build \
+            -project SportsHub.xcodeproj \
+            -scheme SportsHub \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log
+
+      - name: Run unit tests
+        script: |
+          xcodebuild test \
+            -project SportsHub.xcodeproj \
+            -scheme SportsHub \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -only-testing:SportsHubTests \
+            -resultBundlePath TestResults.xcresult 2>&1 | tee test.log
+
+      - name: Parse test results
+        script: |
+          if grep -q "\\*\\* TEST SUCCEEDED \\*\\*" test.log; then
+            echo "✅ All tests passed"
+          else
+            echo "❌ Tests failed — check test.log"
+            exit 1
+          fi
+
+    artifacts:
+      - build.log
+      - test.log
+      - TestResults.xcresult
+
+    publishing:
+      email:
+        recipients:
+          - $SPORTSHUB_BUILD_NOTIFY_EMAIL
+
+  # ── 手动触发：归档 IPA 用于真机/TestFlight ──
+  sports-hub-archive:
+    name: SportsHub Archive (IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      xcode: latest
+      groups:
+        - sports_hub_env
+        - sports_hub_signing
+    scripts:
+      - name: Install XcodeGen
+        script: brew install xcodegen
+
+      - name: Generate Xcode project
+        script: xcodegen generate
+
+      - name: Set build number from Codemagic
+        script: |
+          cd ios &&
+          agvtool new-version -all $CM_BUILD_NUMBER
+
+      - name: Build archive
+        script: |
+          xcodebuild archive \
+            -project SportsHub.xcodeproj \
+            -scheme SportsHub \
+            -sdk iphoneos \
+            -archivePath build/SportsHub.xcarchive \
+            -configuration Release
+
+      - name: Export IPA
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath build/SportsHub.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist codemagic-export.plist
+
+    artifacts:
+      - build/ipa/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - $SPORTSHUB_BUILD_NOTIFY_EMAIL
