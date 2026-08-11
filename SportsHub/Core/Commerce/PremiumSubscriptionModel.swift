@@ -150,8 +150,8 @@ final class PremiumSubscriptionModel: ObservableObject {
         } catch {
             guard refreshID == operationID, !Task.isCancelled else { return }
             offers = []
-            if error != .verificationFailed {
-                error = .productsUnavailable
+            if self.error != .verificationFailed {
+                self.error = .productsUnavailable
             }
         }
     }
@@ -210,7 +210,7 @@ final class PremiumSubscriptionModel: ObservableObject {
                 error = .purchaseFailed
             }
         } catch {
-            error = .purchaseFailed
+            self.error = .purchaseFailed
         }
     }
 
@@ -231,7 +231,7 @@ final class PremiumSubscriptionModel: ObservableObject {
             await refreshEntitlement()
             actionResult = activeEntitlement == nil ? .nothingToRestore : .restored
         } catch {
-            error = .restoreFailed
+            self.error = .restoreFailed
         }
     }
 
@@ -250,7 +250,7 @@ final class PremiumSubscriptionModel: ObservableObject {
             try await AppStore.showManageSubscriptions(in: scene)
             await refreshEntitlement()
         } catch {
-            error = .managementUnavailable
+            self.error = .managementUnavailable
         }
     }
 
