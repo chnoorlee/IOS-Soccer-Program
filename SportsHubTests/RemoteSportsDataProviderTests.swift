@@ -442,10 +442,11 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                 headers: [:]
             ))
         ])
+        let cache = RecordingSportsDataCache()
         let provider = try RemoteSportsDataProvider(
             baseURL: try XCTUnwrap(URL(string: "https://api.example.test/v1")),
             client: client,
-            cache: MemorySportsDataCache()
+            cache: cache
         )
 
         do {
@@ -2482,7 +2483,18 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                     id: "follow-\(index)",
                     type: .team,
                     entityId: "team-\(index)",
-                    createdAt: now
+                    createdAt: now,
+                    entity: FollowEntityDTO(
+                        type: .team,
+                        team: TeamDTO(
+                            id: "team-\(index)",
+                            name: LocalizedTextDTO(ar: "فريق", en: "Team"),
+                            monogram: "T",
+                            accentColorHex: nil
+                        ),
+                        player: nil,
+                        competition: nil
+                    )
                 )
             }
         )
@@ -2779,6 +2791,7 @@ final class RemoteSportsDataProviderTests: XCTestCase {
     func testFixtureContextEndpointsAreIndependentCacheableResources() async throws {
         let fixture = try APIJSON.makeDecoder()
             .decode(FixtureDetailResponseDTO.self, from: TestPayloads.fixtureDetails)
+            .data
             .domain()
             .fixture
         let now = Date(timeIntervalSince1970: 1_788_000_000)
