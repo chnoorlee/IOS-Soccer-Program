@@ -75,7 +75,7 @@ workflows:
 
       - name: Check test results
         script: |
-          if grep -q "\\*\\* TEST SUCCEEDED \\*\\*" test.log; then
+          if grep -Eq '\*\* TEST (EXECUTE )?SUCCEEDED \*\*' test.log; then
             echo "All tests passed"
           else
             echo "Tests failed - check test.log"
