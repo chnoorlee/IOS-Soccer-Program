@@ -33,7 +33,6 @@ workflows:
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
             -only-testing:SportsHubTests \
             -resultBundlePath TestResults.xcresult 2>&1 | tee test.log
 
