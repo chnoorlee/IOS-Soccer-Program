@@ -1,6 +1,10 @@
-# SportsHub iOS
+# SportsHub Android（`codex/Android` 分支）
 
-SportsHub 是一个 Arabic-first、English-ready 的原生 iPhone 体育应用工程。当前第一个纵向切片默认使用虚构球队和本地模拟数据，覆盖：
+本分支已新增可由 Android Studio 直接打开、构建和运行的原生 Android 应用。Android 迁移范围、工具链和验证命令见 [ANDROID-MIGRATION.md](ANDROID-MIGRATION.md)。原 SwiftUI 源码暂时保留为迁移对照，不参与 Android Gradle 构建。
+
+## 原 iOS 功能清单（迁移参考，不代表 Android 已全部实现）
+
+SportsHub 原项目是一个 Arabic-first、English-ready 的原生 iPhone 体育应用工程。其功能清单包括：
 
 - 首次语言与球队/球员/赛事分区选择、显式跳过和 Profile 后续编辑；三个公共目录独立加载与重试，已有关注不会因重新进入引导而清空
 - 首页兴趣直达、仅基于关注球队/赛事 ID 的可解释相关比赛、覆盖全部领域状态的统一比赛筛选、公共重要赛程回退，以及带“全部/已收藏”和真实载荷分类筛选的最新新闻层级
