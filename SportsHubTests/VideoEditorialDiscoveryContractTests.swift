@@ -120,7 +120,7 @@ final class VideoEditorialDiscoveryContractTests: XCTestCase {
         let payload = try JSONSerialization.data(withJSONObject: [
             "data": [
                 "items": itemObjects,
-                "featuredVideoId": featured ?? NSNull(),
+                "featuredVideoId": featured.map { $0 as Any } ?? NSNull(),
                 "trendingVideoIds": trending
             ]
         ])
