@@ -27,14 +27,51 @@ workflows:
       - name: Run unit tests
         script: |
           set -o pipefail
-          xcodebuild test \
+          TEST_DERIVED_DATA="$PWD/build/test-derived-data"
+          TEST_APP="$TEST_DERIVED_DATA/Build/Products/Debug-iphonesimulator/SportsHub.app"
+          WIDGET_EXTENSION="$TEST_APP/PlugIns/SportsHubWidgets.appex"
+
+          xcodebuild build-for-testing \
             -project SportsHub.xcodeproj \
             -scheme SportsHub \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -configuration Debug \
             -only-testing:SportsHubTests \
-            -resultBundlePath TestResults.xcresult 2>&1 | tee test.log
+            -derivedDataPath "$TEST_DERIVED_DATA" 2>&1 | tee test.log
+
+          WIDGET_EXTENSION_POINT=$(
+            /usr/libexec/PlistBuddy \
+              -c 'Print :NSExtension:NSExtensionPointIdentifier' \
+              "$WIDGET_EXTENSION/Info.plist"
+          )
+          if [[ "$WIDGET_EXTENSION_POINT" != "com.apple.widgetkit-extension" ]]; then
+            echo "Invalid WidgetKit extension point: $WIDGET_EXTENSION_POINT" | tee -a test.log
+            exit 1
+          fi
+
+          # Xcode 26.4 Simulator cannot install this unit-test host while its
+          # otherwise-valid WidgetKit extension is embedded. The preceding
+          # build still compiles and validates the extension; only the
+          # disposable test host is adjusted before installation.
+          mkdir -p build/test-host-extensions
+          mv "$WIDGET_EXTENSION" build/test-host-extensions/
+          codesign \
+            --force \
+            --sign - \
+            --preserve-metadata=identifier,entitlements,flags,runtime \
+            --timestamp=none \
+            "$TEST_APP"
+
+          xcodebuild test-without-building \
+            -project SportsHub.xcodeproj \
+            -scheme SportsHub \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -configuration Debug \
+            -only-testing:SportsHubTests \
+            -derivedDataPath "$TEST_DERIVED_DATA" \
+            -resultBundlePath TestResults.xcresult 2>&1 | tee -a test.log
 
       - name: Check test results
         script: |
