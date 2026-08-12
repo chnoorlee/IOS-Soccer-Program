@@ -224,6 +224,7 @@ final class ArticleVisualBriefContractTests: XCTestCase {
             format: format,
             correctionStatus: .original,
             engagement: nil,
+            heroMedia: nil,
             body: text("Body"),
             revision: 1,
             visualBrief: visualBrief

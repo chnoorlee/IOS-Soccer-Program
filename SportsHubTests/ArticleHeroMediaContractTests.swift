@@ -321,7 +321,7 @@ final class ArticleHeroMediaContractTests: XCTestCase {
               "category": "ANALYSIS",
               "format": "STORY",
               "correctionStatus": "ORIGINAL",
-              (heroMedia)
+              \(heroMedia)
               "engagement": {"totalReactions": 2, "publishedComments": 1}
             }
             """.utf8
