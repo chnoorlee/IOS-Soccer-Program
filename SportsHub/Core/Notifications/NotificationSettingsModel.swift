@@ -112,7 +112,7 @@ final class NotificationSettingsModel: ObservableObject {
             await loadPreferences(for: accountID)
         } catch {
             authorizationStatus = await permissionCoordinator.authorizationStatus()
-            error = .permissionRequestFailed
+            self.error = .permissionRequestFailed
         }
     }
 
@@ -121,7 +121,7 @@ final class NotificationSettingsModel: ObservableObject {
             try await permissionCoordinator.openSystemSettings()
             clearError(if: .settingsUnavailable)
         } catch {
-            error = .settingsUnavailable
+            self.error = .settingsUnavailable
         }
     }
 
@@ -244,8 +244,8 @@ final class NotificationSettingsModel: ObservableObject {
             clearError(if: .synchronizationFailed)
         } catch {
             guard currentAccountID() == accountID else { return }
-            if error == nil || error == .synchronizationFailed {
-                error = .synchronizationFailed
+            if self.error == nil || self.error == .synchronizationFailed {
+                self.error = .synchronizationFailed
             }
         }
     }
@@ -273,7 +273,7 @@ final class NotificationSettingsModel: ObservableObject {
                 guard currentAccountID() == pending.accountID else {
                     if queuedRegistration == nil {
                         pushRegistrationState = .idle
-                        error = nil
+                        self.error = nil
                     }
                     continue
                 }
@@ -285,7 +285,7 @@ final class NotificationSettingsModel: ObservableObject {
                 guard currentAccountID() == pending.accountID else {
                     if queuedRegistration == nil {
                         pushRegistrationState = .idle
-                        error = nil
+                        self.error = nil
                     }
                     continue
                 }

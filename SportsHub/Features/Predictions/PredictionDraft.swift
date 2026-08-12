@@ -43,8 +43,8 @@ struct PredictionDraft: Equatable, Sendable {
     ) -> Bool {
         guard let index = teamIDs(in: groupID).firstIndex(of: teamID) else { return false }
         switch direction {
-        case .up: index > 0
-        case .down: index < teamIDs(in: groupID).count - 1
+        case .up: return index > 0
+        case .down: return index < teamIDs(in: groupID).count - 1
         }
     }
 
