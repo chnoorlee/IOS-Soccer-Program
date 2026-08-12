@@ -20,11 +20,12 @@ struct HomeNewsPresentation: Equatable, Sendable {
     init(articles sourceArticles: [Article], selectedCategoryKey: String?) {
         self.sourceArticles = sourceArticles
         var seenCategoryKeys: Set<String> = []
-        categoryKeys = sourceArticles.compactMap { article in
+        let categoryKeys = sourceArticles.compactMap { article in
             seenCategoryKeys.insert(article.categoryKey).inserted
                 ? article.categoryKey
                 : nil
         }
+        self.categoryKeys = categoryKeys
 
         let effectiveCategoryKey = selectedCategoryKey.flatMap { candidate in
             categoryKeys.contains(candidate) ? candidate : nil
