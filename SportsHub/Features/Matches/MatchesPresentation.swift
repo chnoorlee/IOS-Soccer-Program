@@ -102,7 +102,7 @@ struct MatchesPresentation: Equatable, Sendable {
         for fixture in visibleFixtures {
             fixturesByCompetitionID[fixture.competition.id, default: []].append(fixture)
         }
-        let groups = availableCompetitions.compactMap { competition in
+        let groups: [CompetitionFixtureGroup] = availableCompetitions.compactMap { competition in
             guard let groupedFixtures = fixturesByCompetitionID[competition.id],
                   !groupedFixtures.isEmpty else {
                 return nil
