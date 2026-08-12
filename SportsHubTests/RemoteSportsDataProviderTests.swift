@@ -343,7 +343,6 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                 statusCode: 200,
                 headers: [:]
             )),
-            .success(HTTPResponse(data: Data(), statusCode: 304, headers: [:])),
             .success(HTTPResponse(
                 data: TestPayloads.teamMatchSnapshots(ids: Array(ids.suffix(1))),
                 statusCode: 200,
@@ -4679,7 +4678,7 @@ private enum TestPayloads {
               "rows": [
                 {
                   "rank": 1,
-                  "team": (teamJSON),
+                  "team": \(teamJSON),
                   "played": 20,
                   "won": 15,
                   "drawn": 3,
@@ -4720,7 +4719,7 @@ private enum TestPayloads {
         {
           "data": {
             "fixtureId": "fixture-1",
-            "homeTeam": (teamJSON),
+            "homeTeam": \(teamJSON),
             "awayTeam": {
               "id": "team-away",
               "name": {"ar": "الفريق الثاني", "en": "Away Team"},
@@ -4740,7 +4739,7 @@ private enum TestPayloads {
                 "monogram": "AWY",
                 "accentColorHex": "9B5B00"
               },
-              "awayTeam": (teamJSON),
+              "awayTeam": \(teamJSON),
               "kickoffAt": "2026-03-01T18:00:00Z",
               "state": "FINISHED",
               "minute": 90,

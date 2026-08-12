@@ -256,6 +256,7 @@ final class PersonalVideoStateStoreTests: XCTestCase {
             store: FilePersonalVideoStateStore(rootDirectory: rootDirectory)
         )
         _ = try await provider.setVideoFavorite(videoID: "video-highlight-1", isFavorite: true)
+        _ = try await provider.setArticleFavorite(articleID: "article-1", isFavorite: true)
         _ = try await provider.saveWatchProgress(
             videoID: "video-highlight-1",
             positionSeconds: 120,
@@ -334,6 +335,7 @@ final class PersonalVideoStateStoreTests: XCTestCase {
             store: store
         )
         _ = try await provider.setVideoFavorite(videoID: "video-highlight-1", isFavorite: true)
+        _ = try await provider.setArticleFavorite(articleID: "article-1", isFavorite: true)
         _ = try await provider.saveWatchProgress(
             videoID: "video-highlight-1",
             positionSeconds: 90,

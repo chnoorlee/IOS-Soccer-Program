@@ -27,6 +27,7 @@ enum ArabicSearchNormalizer {
             .replacingOccurrences(of: "أ", with: "ا")
             .replacingOccurrences(of: "إ", with: "ا")
             .replacingOccurrences(of: "آ", with: "ا")
+            .replacingOccurrences(of: "ٱ", with: "ا")
             .replacingOccurrences(of: "ى", with: "ي")
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }

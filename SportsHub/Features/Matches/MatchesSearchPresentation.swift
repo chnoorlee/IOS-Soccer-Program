@@ -49,20 +49,6 @@ struct MatchesSearchPresentation: Equatable, Sendable {
     }
 
     private static func normalize(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(
-                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-            .replacingOccurrences(of: "ـ", with: "")
-            .replacingOccurrences(of: "أ", with: "ا")
-            .replacingOccurrences(of: "إ", with: "ا")
-            .replacingOccurrences(of: "آ", with: "ا")
-            .replacingOccurrences(of: "ٱ", with: "ا")
-            .replacingOccurrences(of: "ى", with: "ي")
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        ArabicSearchNormalizer.normalize(value)
     }
 }

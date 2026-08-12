@@ -1464,9 +1464,7 @@ foreach ($searchMarker in @(
     'fixture.awayTeam.nameEnglish',
     'fixture.competition.nameArabic',
     'fixture.venueEnglish',
-    '.diacriticInsensitive',
-    '.replacingOccurrences(of:',
-    'locale: Locale(identifier: "en_US_POSIX")'
+    'ArabicSearchNormalizer.normalize(value)'
 )) {
     if (-not $matchesSearchSource.Contains($searchMarker)) {
         throw "Matches search model is missing contract marker $searchMarker"
