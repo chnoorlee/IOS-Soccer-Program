@@ -1418,8 +1418,8 @@ foreach ($followMarker in @(
     'fixture.homeTeam.id',
     'fixture.awayTeam.id',
     'fixture.competition.id',
-    'case (true, true): .teamAndCompetition',
-    'case (false, false): nil'
+    'case (true, true): return .teamAndCompetition',
+    'case (false, false): return nil'
 )) {
     if (-not $fixtureFollowSource.Contains($followMarker)) {
         throw "Shared fixture-follow matcher is missing contract marker $followMarker"
@@ -1464,9 +1464,7 @@ foreach ($searchMarker in @(
     'fixture.awayTeam.nameEnglish',
     'fixture.competition.nameArabic',
     'fixture.venueEnglish',
-    '.diacriticInsensitive',
-    '.replacingOccurrences(of:',
-    'locale: Locale(identifier: "en_US_POSIX")'
+    'ArabicSearchNormalizer.normalize(value)'
 )) {
     if (-not $matchesSearchSource.Contains($searchMarker)) {
         throw "Matches search model is missing contract marker $searchMarker"

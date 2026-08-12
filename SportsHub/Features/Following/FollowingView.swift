@@ -602,7 +602,7 @@ struct FollowingView: View {
         case .failure:
             teamMatchSnapshots = nil
             teamMatchSnapshotFailed = true
-            teamMatchSnapshotErrorFocused = nil
+            teamMatchSnapshotErrorFocused = false
             Task { @MainActor in
                 await Task.yield()
                 teamMatchSnapshotErrorFocused = true

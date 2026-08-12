@@ -250,6 +250,7 @@ final class TeamContextContractTests: XCTestCase {
             minute: nil,
             score: nil,
             venue: LocalizedTextDTO(ar: "Stadium", en: "Stadium"),
+            broadcasts: nil,
             revision: 0
         )
     }

@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class OnboardingJourneyTests: XCTestCase {
     func testCompetitionDetailSwitchesToSeasonFixturesAndOpensMatchCenter() {
         let app = XCUIApplication()

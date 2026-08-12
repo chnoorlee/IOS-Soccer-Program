@@ -548,12 +548,12 @@ final class AppModel: ObservableObject {
                 videoID: "video-highlight-1",
                 isFavorite: true
             )
-            try await dataProvider.saveWatchProgress(
+            _ = try await dataProvider.saveWatchProgress(
                 videoID: "video-highlight-1",
                 positionSeconds: 125,
                 completed: false
             )
-            try await dataProvider.saveWatchProgress(
+            _ = try await dataProvider.saveWatchProgress(
                 videoID: "video-original-1",
                 positionSeconds: 180,
                 completed: true

@@ -510,7 +510,7 @@ struct HomeView: View {
         )
         let sourceArticles = presentation.sourceArticles
 
-        VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "home.latestNews")
             newsScopeControls
 

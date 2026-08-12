@@ -175,6 +175,48 @@ final class PremiumSubscriptionContractTests: XCTestCase {
         XCTAssertFalse(model.shouldShowAdvertising)
     }
 
+    func testUnexpectedStoreFailuresSetSpecificUserFacingErrors() async {
+        let loadClient = TestSubscriptionStoreClient(
+            offers: offers(),
+            failLoadOffers: true
+        )
+        let loadModel = PremiumSubscriptionModel(
+            configuration: configuration(),
+            client: loadClient
+        )
+
+        await loadModel.refresh()
+
+        XCTAssertEqual(loadModel.error, .productsUnavailable)
+
+        let purchaseClient = TestSubscriptionStoreClient(
+            offers: offers(),
+            failPurchase: true
+        )
+        let purchaseModel = PremiumSubscriptionModel(
+            configuration: configuration(),
+            client: purchaseClient
+        )
+        await purchaseModel.refresh()
+
+        await purchaseModel.purchase(offerID: "monthly")
+
+        XCTAssertEqual(purchaseModel.error, .purchaseFailed)
+
+        let restoreClient = TestSubscriptionStoreClient(
+            offers: offers(),
+            failSync: true
+        )
+        let restoreModel = PremiumSubscriptionModel(
+            configuration: configuration(),
+            client: restoreClient
+        )
+
+        await restoreModel.restore()
+
+        XCTAssertEqual(restoreModel.error, .restoreFailed)
+    }
+
     private func configuration(
         monthly: String? = "monthly",
         annual: String? = "annual",
@@ -236,20 +278,32 @@ private actor TestSubscriptionStoreClient: SubscriptionStoreClient {
     private let offers: [SubscriptionOffer]
     private var records: [SubscriptionTransactionRecord]
     private let purchaseRecord: SubscriptionTransactionRecord?
+    private let failLoadOffers: Bool
+    private let failPurchase: Bool
+    private let failSync: Bool
     private var synchronizationCount = 0
 
     init(
         offers: [SubscriptionOffer],
         records: [SubscriptionTransactionRecord] = [],
-        purchaseRecord: SubscriptionTransactionRecord? = nil
+        purchaseRecord: SubscriptionTransactionRecord? = nil,
+        failLoadOffers: Bool = false,
+        failPurchase: Bool = false,
+        failSync: Bool = false
     ) {
         self.offers = offers
         self.records = records
         self.purchaseRecord = purchaseRecord
+        self.failLoadOffers = failLoadOffers
+        self.failPurchase = failPurchase
+        self.failSync = failSync
     }
 
     func loadOffers(productIDs: [String]) async throws -> [SubscriptionOffer] {
-        offers
+        if failLoadOffers {
+            throw TestSubscriptionStoreError.unexpected
+        }
+        return offers
     }
 
     func entitlementRecords(
@@ -259,6 +313,9 @@ private actor TestSubscriptionStoreClient: SubscriptionStoreClient {
     }
 
     func purchase(productID: String) async throws -> SubscriptionPurchaseOutcome {
+        if failPurchase {
+            throw TestSubscriptionStoreError.unexpected
+        }
         guard let purchaseRecord, purchaseRecord.productID == productID else {
             throw SubscriptionClientError.transactionMismatch
         }
@@ -267,6 +324,9 @@ private actor TestSubscriptionStoreClient: SubscriptionStoreClient {
     }
 
     func sync() async throws {
+        if failSync {
+            throw TestSubscriptionStoreError.unexpected
+        }
         synchronizationCount += 1
     }
 
@@ -279,4 +339,8 @@ private actor TestSubscriptionStoreClient: SubscriptionStoreClient {
     func syncCount() -> Int {
         synchronizationCount
     }
+}
+
+private enum TestSubscriptionStoreError: Error, Sendable {
+    case unexpected
 }

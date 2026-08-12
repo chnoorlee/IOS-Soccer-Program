@@ -33,7 +33,7 @@ enum ContextualAlertTarget: Hashable, Sendable {
     func title(in language: AppLanguage) -> String {
         switch self {
         case let .entity(entity):
-            entity.displayName(in: language)
+            return entity.displayName(in: language)
         case let .fixture(fixture):
             let home = fixture.homeTeam.displayName(in: language)
             let away = fixture.awayTeam.displayName(in: language)

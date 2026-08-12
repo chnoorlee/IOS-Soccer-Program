@@ -42,8 +42,8 @@ final class VideoPosterMediaContractTests: XCTestCase {
             ("\"contentType\": \"image/jpeg\"", "\"contentType\": \"image/svg+xml\"", "video.poster.contentType"),
             ("\"width\": 1600", "\"width\": 639", "video.poster.width"),
             ("\"height\": 900", "\"height\": 359", "video.poster.height"),
-            ("\"width\": 1600, \"height\": 900", "\"width\": 4096, \"height\": 4000", "video.poster.dimensions"),
-            ("\"width\": 1600, \"height\": 900", "\"width\": 640, \"height\": 600", "video.poster.aspectRatio"),
+            ("\"width\": 1600,\n  \"height\": 900", "\"width\": 4096,\n  \"height\": 4000", "video.poster.dimensions"),
+            ("\"width\": 1600,\n  \"height\": 900", "\"width\": 640,\n  \"height\": 600", "video.poster.aspectRatio"),
             ("A fictional host in the studio", String(repeating: "a", count: 181), "video.poster.altText"),
             ("SportsHub Demo Studio", "", "video.poster.credit.en")
         ]
@@ -67,7 +67,7 @@ final class VideoPosterMediaContractTests: XCTestCase {
 
         let encoded = try JSONEncoder().encode(video)
         let encodedText = String(decoding: encoded, as: UTF8.self)
-        XCTAssertFalse(encodedText.contains("poster"))
+        XCTAssertFalse(encodedText.contains("\"poster\""))
         XCTAssertFalse(encodedText.contains("media.example.test"))
 
         let decoded = try JSONDecoder().decode(SportsVideo.self, from: encoded)

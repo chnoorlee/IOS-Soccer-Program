@@ -202,7 +202,7 @@ struct TeamDetailView: View {
 
     @ViewBuilder
     private func fixtureSection(
-        title: String,
+        title: LocalizedStringKey,
         fixtures: [Fixture]
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {

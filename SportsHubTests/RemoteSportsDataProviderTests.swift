@@ -343,7 +343,6 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                 statusCode: 200,
                 headers: [:]
             )),
-            .success(HTTPResponse(data: Data(), statusCode: 304, headers: [:])),
             .success(HTTPResponse(
                 data: TestPayloads.teamMatchSnapshots(ids: Array(ids.suffix(1))),
                 statusCode: 200,
@@ -442,10 +441,11 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                 headers: [:]
             ))
         ])
+        let cache = RecordingSportsDataCache()
         let provider = try RemoteSportsDataProvider(
             baseURL: try XCTUnwrap(URL(string: "https://api.example.test/v1")),
             client: client,
-            cache: MemorySportsDataCache()
+            cache: cache
         )
 
         do {
@@ -2482,7 +2482,18 @@ final class RemoteSportsDataProviderTests: XCTestCase {
                     id: "follow-\(index)",
                     type: .team,
                     entityId: "team-\(index)",
-                    createdAt: now
+                    createdAt: now,
+                    entity: FollowEntityDTO(
+                        type: .team,
+                        team: TeamDTO(
+                            id: "team-\(index)",
+                            name: LocalizedTextDTO(ar: "فريق", en: "Team"),
+                            monogram: "T",
+                            accentColorHex: nil
+                        ),
+                        player: nil,
+                        competition: nil
+                    )
                 )
             }
         )
@@ -2779,6 +2790,7 @@ final class RemoteSportsDataProviderTests: XCTestCase {
     func testFixtureContextEndpointsAreIndependentCacheableResources() async throws {
         let fixture = try APIJSON.makeDecoder()
             .decode(FixtureDetailResponseDTO.self, from: TestPayloads.fixtureDetails)
+            .data
             .domain()
             .fixture
         let now = Date(timeIntervalSince1970: 1_788_000_000)
@@ -4666,7 +4678,7 @@ private enum TestPayloads {
               "rows": [
                 {
                   "rank": 1,
-                  "team": (teamJSON),
+                  "team": \(teamJSON),
                   "played": 20,
                   "won": 15,
                   "drawn": 3,
@@ -4707,7 +4719,7 @@ private enum TestPayloads {
         {
           "data": {
             "fixtureId": "fixture-1",
-            "homeTeam": (teamJSON),
+            "homeTeam": \(teamJSON),
             "awayTeam": {
               "id": "team-away",
               "name": {"ar": "الفريق الثاني", "en": "Away Team"},
@@ -4727,7 +4739,7 @@ private enum TestPayloads {
                 "monogram": "AWY",
                 "accentColorHex": "9B5B00"
               },
-              "awayTeam": (teamJSON),
+              "awayTeam": \(teamJSON),
               "kickoffAt": "2026-03-01T18:00:00Z",
               "state": "FINISHED",
               "minute": 90,

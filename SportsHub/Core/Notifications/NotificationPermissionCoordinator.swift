@@ -44,17 +44,17 @@ final class SystemNotificationPermissionCoordinator: NotificationPermissionCoord
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .notDetermined:
-            .notDetermined
+            return .notDetermined
         case .denied:
-            .denied
+            return .denied
         case .authorized:
-            .authorized
+            return .authorized
         case .provisional:
-            .provisional
+            return .provisional
         case .ephemeral:
-            .ephemeral
+            return .ephemeral
         @unknown default:
-            .unknown
+            return .unknown
         }
     }
 

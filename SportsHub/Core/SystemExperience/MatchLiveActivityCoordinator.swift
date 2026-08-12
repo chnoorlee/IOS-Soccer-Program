@@ -47,18 +47,18 @@ enum MatchLiveActivityPolicy {
     ) -> MatchLiveActivityEligibility {
         switch fixture.state {
         case .live, .halfTime:
-            .eligible
+            return .eligible
         case .upcoming:
             let intervalUntilKickoff = fixture.kickoff.timeIntervalSince(now)
             if intervalUntilKickoff < -maximumKickoffGraceInterval {
-                .terminal
+                return .terminal
             } else if intervalUntilKickoff <= maximumUpcomingLeadInterval {
-                .eligible
+                return .eligible
             } else {
-                .kickoffTooDistant
+                return .kickoffTooDistant
             }
         case .finished, .postponed, .cancelled:
-            .terminal
+            return .terminal
         }
     }
 

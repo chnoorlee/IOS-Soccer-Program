@@ -101,13 +101,15 @@ final class HistoricalSeasonCatalogContractTests: XCTestCase {
     }
 
     func testCatalogIsBounded() {
-        let seasons = (0...CompetitionSeasonCatalogContract.maximumSeasonCount).map { index in
-            season(
+        var seasons: [SeasonDTO] = []
+        for index in 0...CompetitionSeasonCatalogContract.maximumSeasonCount {
+            let offset = TimeInterval(index * 10)
+            seasons.append(season(
                 String(format: "season-%03d", index),
-                start: TimeInterval(10_000 - index * 10),
-                end: TimeInterval(10_005 - index * 10),
+                start: 10_000 - offset,
+                end: 10_005 - offset,
                 isCurrent: index == 0
-            )
+            ))
         }
         assertViolation(
             competition(currentSeasonID: "season-000", seasons: seasons),

@@ -39,10 +39,10 @@ struct FixtureFollowMatcher: Equatable, Sendable {
         )
 
         switch (matchesTeam, matchesCompetition) {
-        case (true, true): .teamAndCompetition
-        case (true, false): .team
-        case (false, true): .competition
-        case (false, false): nil
+        case (true, true): return .teamAndCompetition
+        case (true, false): return .team
+        case (false, true): return .competition
+        case (false, false): return nil
         }
     }
 }

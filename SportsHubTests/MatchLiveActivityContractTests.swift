@@ -116,27 +116,23 @@ final class MatchLiveActivityContractTests: XCTestCase {
         let updatedAt = Date()
         let liveFixture = fixture(state: .live, kickoff: updatedAt.addingTimeInterval(-300))
 
-        XCTAssertEqual(
-            try await coordinator.start(
-                fixture: liveFixture,
-                language: .english,
-                isDemo: false,
-                updatedAt: updatedAt
-            ),
-            .started
+        let startResult = try await coordinator.start(
+            fixture: liveFixture,
+            language: .english,
+            isDemo: false,
+            updatedAt: updatedAt
         )
+        XCTAssertEqual(startResult, .started)
         XCTAssertEqual(client.requestedPayloads.count, 1)
         XCTAssertTrue(coordinator.isActive(fixtureID: liveFixture.id))
 
-        XCTAssertEqual(
-            try await coordinator.start(
-                fixture: liveFixture,
-                language: .english,
-                isDemo: false,
-                updatedAt: updatedAt
-            ),
-            .unchanged
+        let unchangedResult = try await coordinator.start(
+            fixture: liveFixture,
+            language: .english,
+            isDemo: false,
+            updatedAt: updatedAt
         )
+        XCTAssertEqual(unchangedResult, .unchanged)
         XCTAssertEqual(client.requestedPayloads.count, 1)
         XCTAssertTrue(client.updatedPayloads.isEmpty)
     }
@@ -159,16 +155,14 @@ final class MatchLiveActivityContractTests: XCTestCase {
             awayScore: 0,
             revision: 4
         )
-        XCTAssertEqual(
-            await coordinator.synchronize(
-                fixture: changed,
-                language: .english,
-                isDemo: false,
-                updatedAt: updatedAt.addingTimeInterval(10),
-                now: updatedAt.addingTimeInterval(10)
-            ),
-            .updated
+        let updateResult = await coordinator.synchronize(
+            fixture: changed,
+            language: .english,
+            isDemo: false,
+            updatedAt: updatedAt.addingTimeInterval(10),
+            now: updatedAt.addingTimeInterval(10)
         )
+        XCTAssertEqual(updateResult, .updated)
         XCTAssertEqual(client.updatedPayloads.last?.state.homeScore, 2)
 
         let finished = fixture(
@@ -178,16 +172,14 @@ final class MatchLiveActivityContractTests: XCTestCase {
             awayScore: 1,
             revision: 5
         )
-        XCTAssertEqual(
-            await coordinator.synchronize(
-                fixture: finished,
-                language: .english,
-                isDemo: false,
-                updatedAt: updatedAt.addingTimeInterval(20),
-                now: updatedAt.addingTimeInterval(20)
-            ),
-            .ended
+        let finishResult = await coordinator.synchronize(
+            fixture: finished,
+            language: .english,
+            isDemo: false,
+            updatedAt: updatedAt.addingTimeInterval(20),
+            now: updatedAt.addingTimeInterval(20)
         )
+        XCTAssertEqual(finishResult, .ended)
         XCTAssertEqual(client.endedPayloads.last?.payload?.state.homeScore, 2)
         guard let dismissal = client.endedPayloads.last?.dismissal,
               case .after = dismissal else {
@@ -268,16 +260,14 @@ final class MatchLiveActivityContractTests: XCTestCase {
             kickoff: now.addingTimeInterval(5 * 60 * 60),
             revision: 1
         )
-        XCTAssertEqual(
-            await coordinator.synchronize(
-                fixture: rescheduled,
-                language: .english,
-                isDemo: false,
-                updatedAt: now.addingTimeInterval(30),
-                now: now.addingTimeInterval(30)
-            ),
-            .ended
+        let rescheduledResult = await coordinator.synchronize(
+            fixture: rescheduled,
+            language: .english,
+            isDemo: false,
+            updatedAt: now.addingTimeInterval(30),
+            now: now.addingTimeInterval(30)
         )
+        XCTAssertEqual(rescheduledResult, .ended)
         XCTAssertEqual(client.endedPayloads.last?.dismissal, .immediate)
         XCTAssertFalse(coordinator.isActive(fixtureID: rescheduled.id))
     }
@@ -300,16 +290,14 @@ final class MatchLiveActivityContractTests: XCTestCase {
             awayScore: 0,
             revision: 5
         )
-        XCTAssertEqual(
-            await coordinator.synchronize(
-                fixture: malformedFinished,
-                language: .english,
-                isDemo: false,
-                updatedAt: now.addingTimeInterval(30),
-                now: now.addingTimeInterval(30)
-            ),
-            .ended
+        let malformedResult = await coordinator.synchronize(
+            fixture: malformedFinished,
+            language: .english,
+            isDemo: false,
+            updatedAt: now.addingTimeInterval(30),
+            now: now.addingTimeInterval(30)
         )
+        XCTAssertEqual(malformedResult, .ended)
         XCTAssertNil(client.endedPayloads.last?.payload)
         XCTAssertEqual(client.endedPayloads.last?.dismissal, .immediate)
         XCTAssertFalse(coordinator.isActive(fixtureID: malformedFinished.id))

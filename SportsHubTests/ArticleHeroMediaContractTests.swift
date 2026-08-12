@@ -38,8 +38,8 @@ final class ArticleHeroMediaContractTests: XCTestCase {
             ("\"contentType\": \"image/jpeg\"", "\"contentType\": \"image/svg+xml\"", "article.heroMedia.contentType"),
             ("\"width\": 1600", "\"width\": 639", "article.heroMedia.width"),
             ("\"height\": 900", "\"height\": 359", "article.heroMedia.height"),
-            ("\"width\": 1600, \"height\": 900", "\"width\": 4096, \"height\": 4000", "article.heroMedia.dimensions"),
-            ("\"width\": 1600, \"height\": 900", "\"width\": 640, \"height\": 600", "article.heroMedia.aspectRatio"),
+            ("\"width\": 1600,\n  \"height\": 900", "\"width\": 4096,\n  \"height\": 4000", "article.heroMedia.dimensions"),
+            ("\"width\": 1600,\n  \"height\": 900", "\"width\": 640,\n  \"height\": 600", "article.heroMedia.aspectRatio"),
             ("A fictional player running with the ball", String(repeating: "a", count: 181), "article.heroMedia.altText"),
             ("SportsHub Demo Studio", "", "article.heroMedia.credit.en")
         ]
@@ -321,7 +321,7 @@ final class ArticleHeroMediaContractTests: XCTestCase {
               "category": "ANALYSIS",
               "format": "STORY",
               "correctionStatus": "ORIGINAL",
-              (heroMedia)
+              \(heroMedia)
               "engagement": {"totalReactions": 2, "publishedComments": 1}
             }
             """.utf8
