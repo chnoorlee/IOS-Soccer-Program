@@ -541,7 +541,7 @@ struct ExploreView: View {
     }
 
     private func personalVideoSection<Content: View>(
-        title: String,
+        title: LocalizedStringKey,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -609,7 +609,7 @@ struct ExploreView: View {
     }
 
     private func contentSection<Content: View>(
-        title: String,
+        title: LocalizedStringKey,
         category: Category,
         isEmpty: Bool,
         @ViewBuilder content: () -> Content

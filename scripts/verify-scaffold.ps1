@@ -1418,8 +1418,8 @@ foreach ($followMarker in @(
     'fixture.homeTeam.id',
     'fixture.awayTeam.id',
     'fixture.competition.id',
-    'case (true, true): .teamAndCompetition',
-    'case (false, false): nil'
+    'case (true, true): return .teamAndCompetition',
+    'case (false, false): return nil'
 )) {
     if (-not $fixtureFollowSource.Contains($followMarker)) {
         throw "Shared fixture-follow matcher is missing contract marker $followMarker"
