@@ -201,7 +201,7 @@ final class HomeMatchPresentationTests: XCTestCase {
     ) -> Fixture {
         let hasScore = state == .live || state == .halfTime || state == .finished
 
-        Fixture(
+        return Fixture(
             id: id,
             competition: MockSportsData.competition,
             homeTeam: homeTeam,
@@ -219,10 +219,10 @@ final class HomeMatchPresentationTests: XCTestCase {
 
     private func expectedState(for filter: HomeMatchFilter) -> FixtureState {
         switch filter {
-        case .upcoming: .upcoming
-        case .finished: .finished
-        case .postponed: .postponed
-        case .cancelled: .cancelled
+        case .upcoming: return .upcoming
+        case .finished: return .finished
+        case .postponed: return .postponed
+        case .cancelled: return .cancelled
         case .all, .live:
             XCTFail("This helper only accepts exact-state filters.")
             return .upcoming
